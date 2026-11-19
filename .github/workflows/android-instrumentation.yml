@@ -62,6 +62,45 @@ jobs:
             set -o pipefail
             ./gradlew :app:connectedDebugAndroidTest --no-daemon --console=plain 2>&1 | tee build-logs/instrumentation.log
 
+      - name: Assert tests actually executed
+        if: always()
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          XMLS=(app/build/outputs/androidTest-results/connected/**/*.xml app/build/outputs/androidTest-results/connected/*.xml)
+          if [ ${#XMLS[@]} -eq 0 ]; then
+            echo "::error::No instrumentation result XML was produced — the suite did not run. Failing instead of reporting a hollow pass."
+            exit 1
+          fi
+          python3 - "${XMLS[@]}" <<'PYEOF'
+          import sys, xml.etree.ElementTree as ET
+
+          total = failures = errors = skipped = 0
+          rows = []
+          for path in sys.argv[1:]:
+              root = ET.parse(path).getroot()
+              for suite in ([root] if root.tag == "testsuite" else root.iter("testsuite")):
+                  t = int(suite.get("tests", 0))
+                  f = int(suite.get("failures", 0))
+                  e = int(suite.get("errors", 0))
+                  k = int(suite.get("skipped", 0))
+                  total += t; failures += f; errors += e; skipped += k
+                  rows.append((suite.get("name", "?"), suite.get("package", ""), t, f, e, k))
+
+          print(f"Instrumentation totals: {total} tests, {failures} failures, {errors} errors, {skipped} skipped")
+          print("\n".join(f"  {r[2]:>3} tests {r[3]}F {r[4]}E {r[5]}S  {r[1]}.{r[0]}" for r in rows))
+          with open("instrumentation-summary.md", "w") as fh:
+              fh.write(f"| Tests | Failures | Errors | Skipped |\n| --- | --- | --- | --- |\n| {total} | {failures} | {errors} | {skipped} |\n")
+
+          if total == 0:
+              print("::error::Result XML contained zero tests. A green run with no tests is a lie; failing.")
+              sys.exit(1)
+          if failures or errors:
+              print(f"::error::{failures} failure(s) and {errors} error(s) reported. See the uploaded HTML report.")
+              sys.exit(1)
+          PYEOF
+          cat instrumentation-summary.md >> "$GITHUB_STEP_SUMMARY"
+
       - name: Report failures as annotations
         if: failure()
         run: bash .github/scripts/report-failure.sh build-logs

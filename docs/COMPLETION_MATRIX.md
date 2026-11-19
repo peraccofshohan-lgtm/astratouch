@@ -14,10 +14,14 @@ verified, how it is verified, and where the edges are.
 | ⛔ **BLOCKED** | Depends on something outside this environment (see note) |
 | ➖ **N/A** | Not applicable, with a reason |
 
-Verified CI run: **`44474918008`** — `Android CI` on branch
-`arena/51c0745e-astratouch`, conclusion **success**. Steps passed:
-`Unit tests`, `Lint`, `Build debug APK`; artifacts `astratouch-debug-apk` (18.5 MB)
-and `astratouch-test-reports` uploaded.
+Verified CI runs on branch `arena/51c0745e-astratouch`:
+
+| Run | Workflow | Result |
+| --- | --- | --- |
+| `44474918008` | Android CI | success — `Unit tests`, `Lint`, `Build debug APK`; artifacts `astratouch-debug-apk` (18.5 MB) and `astratouch-test-reports` |
+| `44476967768` | Android CI | success — after the migration rework |
+| `44478519934` | Android Instrumentation | success — API **29**, **33** and **36** emulator jobs (324 s / 455 s / 352 s) |
+| `44478520365` | Android PR | success — PR verification on PR #1 |
 
 > **Verification honesty statement.** No local Android build is possible in the
 > environment this repository was produced in (no JDK and no Android SDK;
@@ -167,14 +171,14 @@ and `astratouch-test-reports` uploaded.
 | Item | Status | Notes |
 | --- | --- | --- |
 | JVM unit tests | ✅ TESTED | 9 files / 79 test cases (+6 instrumentation), all passing in run `44474918008` |
-| Room database tests (API 29/33/34) | ✅ TESTED | Robolectric `@Config` matrix |
-| Migration test | ✅ TESTED | Runs in `androidTest` on the emulator matrix |
-| Navigation smoke test | ✅ TESTED | `NavigationInstrumentedTest` |
-| Calculator UI test | ✅ TESTED | `CalculatorInstrumentedTest` |
-| Emulator matrix API 29/33/36 | ⛔ BLOCKED | Workflow `android-instrumentation.yml` is written and committed; first run requires a push to `main` (branch protection/PR flow) and a ~20 min emulator job. Not yet observed passing |
+| Room database tests (API 29/33/34) | ✅ TESTED | Robolectric `@Config` matrix, JVM |
+| Migration test | ✅ TESTED | Self-contained v1 schema; ran on API 29, 33 and 36 in run `44478519934`. Migration made idempotent after the test exposed the `duplicate column name` re-run bug |
+| Navigation smoke test | ✅ TESTED | `NavigationInstrumentedTest` — real Hilt graph on a device |
+| Calculator UI test | ✅ TESTED | `CalculatorInstrumentedTest` — types `2 + 3 =` through Compose and asserts `5` |
+| Emulator matrix API 29/33/36 | ✅ TESTED | Run `44478519934` on PR #1: all three API levels passed (324 s, 455 s, 352 s). The job now also fails if zero tests execute, so a hollow pass is impossible |
 | Lint (`lintDebug`) | ✅ TESTED | Passed in run `44474918008` |
 | Lint (`lintRelease`) | ⛔ BLOCKED | Only runs inside the release workflow; needs signing secrets |
-| Physical device testing | ➖ N/A | No device available; documented as a gap |
+| Physical device testing | ➖ N/A | No device available; documented as a gap in KNOWN_LIMITATIONS |
 | TalkBack audit | ➖ N/A | Requires a human screen-reader user; documented as a gap |
 | Performance profiling | ➖ N/A | See KNOWN_LIMITATIONS |
 
@@ -212,7 +216,7 @@ and `astratouch-test-reports` uploaded.
 | Item | Status | Notes |
 | --- | --- | --- |
 | CI (test + lint + debug APK) | ✅ TESTED | Run `44474918008` success |
-| PR verification workflow | ✅ BUILT | `android-pr.yml` |
+| PR verification workflow | ✅ TESTED | `android-pr.yml` green on PR #1 (run `44478520365`) |
 | Self-hosted signing gate | ✅ BUILT | 4 secrets required; no debug-key fallback |
 | Signature verification gate | ✅ BUILT | Rejects `CN=Android Debug`, requires v2+v3 |
 | Badging assertions | ✅ BUILT | package / versionName / versionCode / minSdk / targetSdk |

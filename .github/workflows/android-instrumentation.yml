@@ -49,6 +49,22 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
+      # Dependency resolution occasionally 502s against Google's Maven mirror on a
+      # cold runner; a bounded retry keeps the matrix honest without hiding a real
+      # build failure.
+      - name: Warm the Gradle dependency cache
+        run: |
+          for attempt in 1 2 3; do
+            if ./gradlew :app:assembleDebugAndroidTest --no-daemon --console=plain; then
+              echo "dependency warm-up succeeded on attempt $attempt"
+              exit 0
+            fi
+            echo "::warning::warm-up attempt $attempt failed; retrying in 20s"
+            sleep 20
+          done
+          echo "::error::Could not resolve the build's dependencies after 3 attempts."
+          exit 1
+
       - name: Run instrumentation tests on an emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:

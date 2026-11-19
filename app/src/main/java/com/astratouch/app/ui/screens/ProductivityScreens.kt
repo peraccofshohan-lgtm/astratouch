@@ -635,6 +635,7 @@ fun CalculatorScreen(
                             result!!,
                             style = MaterialTheme.typography.titleMedium,
                             color = if (result!!.startsWith("Error")) astra.danger else astra.primary,
+                            modifier = Modifier.testTag("calc_result"),
                         )
                     }
                 }
@@ -702,7 +703,11 @@ private fun CalcKey(label: String, modifier: Modifier = Modifier, accent: Boolea
             .height(56.dp)
             .clip(RoundedCornerShape(14.dp))
             .background(if (accent) astra.primary.copy(alpha = 0.22f) else astra.surface)
-            .clickable(onClick = onClick),
+            .clickable(onClick = onClick)
+            // Keys are also reachable by text ("2", "+"), but the display and the
+            // recent-calculations list contain the same glyphs. The tag makes the
+            // keypad unambiguous for UI tests and for TalkBack ordering.
+            .testTag("calc_key_$label"),
         contentAlignment = Alignment.Center,
     ) {
         Text(

@@ -34,15 +34,23 @@ object AppModule {
             .fallbackToDestructiveMigrationOnDowngrade()
             .build()
 
+    /**
+     * Process-wide DataStore instance.
+     *
+     * DataStore enforces a single active instance per file. Creating one per Hilt
+     * component looks correct (`@Singleton` in `SingletonComponent`) but every
+     * test/`HiltTestActivity` component built on top of it would open the same
+     * `astratouch_prefs.preferences_pb` again and crash at runtime with
+     * "There are multiple DataStores active for the same file". Caching the
+     * instance in a process-level holder makes the invariant hold everywhere,
+     * including instrumentation tests that create several components in one run.
+     */
     @Provides
     @Singleton
     fun provideDataStore(
         @ApplicationContext context: Context,
         @ApplicationScope scope: CoroutineScope,
-    ): DataStore<Preferences> = PreferenceDataStoreFactory.create(
-        scope = scope,
-        produceFile = { context.preferencesDataStoreFile("astratouch_prefs") },
-    )
+    ): DataStore<Preferences> = DataStoreHolder.get(context, scope)
 
     @Provides
     @Singleton
@@ -52,4 +60,30 @@ object AppModule {
     @Singleton
     @ApplicationScope
     fun provideApplicationScope(): CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+}
+
+/**
+ * Owns the single [DataStore] for `astratouch_prefs`.
+ *
+ * Keyed by absolute file path so a test that uses a different `Context` (or a
+ * different app instance after a process restart) still gets exactly one
+ * instance per file.
+ */
+internal object DataStoreHolder {
+    private val lock = Any()
+    private val stores = mutableMapOf<String, DataStore<Preferences>>()
+
+    fun get(context: Context, scope: CoroutineScope): DataStore<Preferences> {
+        val file = context.applicationContext.preferencesDataStoreFile(DATASTORE_NAME)
+        synchronized(lock) {
+            return stores.getOrPut(file.absolutePath) {
+                PreferenceDataStoreFactory.create(
+                    scope = scope,
+                    produceFile = { file },
+                )
+            }
+        }
+    }
+
+    private const val DATASTORE_NAME = "astratouch_prefs"
 }

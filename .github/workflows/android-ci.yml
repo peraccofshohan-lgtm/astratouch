@@ -98,20 +98,43 @@ jobs:
       - name: Verify the personal APK is signed by the stable identity
         if: success()
         run: |
-          set -euo pipefail
+          set -uo pipefail
           SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
-          BUILD_TOOLS=$(ls -d "$SDK"/build-tools/* 2>/dev/null | sort -V | tail -n 1)
+          echo "SDK=$SDK"
+          ls -d "$SDK"/build-tools/* 2>/dev/null || echo "(no build-tools dir)"
+          BUILD_TOOLS=$(ls -d "$SDK"/build-tools/* 2>/dev/null | sort -V | tail -n 1 || true)
+
           APK=$(find app/build/outputs/apk/debugPersonal -name '*.apk' ! -name '*unsigned*' | head -1)
-          echo "SDK=$SDK"; echo "BUILD_TOOLS=$BUILD_TOOLS"; echo "APK=$APK"
-          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK" | tee signature.txt
+          echo "APK=<$APK>"
+          ls -la app/build/outputs/apk/debugPersonal/ || true
+          if [ -z "$APK" ] || [ ! -f "$APK" ]; then
+            echo "::error::No debugPersonal APK found to verify"
+            exit 1
+          fi
+
           EXPECTED=$(grep -m1 'SHA-256 fingerprint' .github/signing-identity.txt | awk -F': *' '{print $2}')
-          ACTUAL=$(sed -n 's/.*Signer #1 certificate SHA-256 digest: *//p' signature.txt | head -1 | tr -d ' \r')
           echo "expected=<$EXPECTED>"
+
+          ACTUAL=""
+          if [ -n "$BUILD_TOOLS" ] && [ -x "$BUILD_TOOLS/apksigner" ]; then
+            echo "== apksigner $("$BUILD_TOOLS/apksigner" --version 2>&1) =="
+            # apksigner exits non-zero on v1-verification warnings even when v2/v3
+            # are fine, so capture the output and inspect it rather than trusting
+            # the exit code alone.
+            "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK" > signature.txt 2>&1 || true
+            sed -n '1,80p' signature.txt
+            ACTUAL=$(sed -n 's/.*Signer #1 certificate SHA-256 digest: *//p' signature.txt | head -1 | tr -d ' \r')
+          else
+            echo "::warning::apksigner not found in build-tools; falling back to keytool"
+            keytool -printcert -jarfile "$APK" > signature.txt 2>&1 || true
+            sed -n '1,60p' signature.txt
+            HEX=$(sed -n 's/.*SHA256: *//p' signature.txt | head -1 | tr -d ': \r' | tr 'A-Z' 'a-z')
+            ACTUAL="$HEX"
+          fi
+
           echo "actual=<$ACTUAL>"
-          echo "--- raw digest lines ---"
-          grep -i 'digest' signature.txt || echo "(no digest line found)"
           if [ -z "$ACTUAL" ]; then
-            echo "::error::apksigner did not report a signer certificate digest"
+            echo "::error::Could not determine the APK signing certificate"
             exit 1
           fi
           if [ "$ACTUAL" != "$EXPECTED" ]; then

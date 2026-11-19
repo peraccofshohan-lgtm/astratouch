@@ -106,7 +106,7 @@ clipboard history is excluded from backups. Full statement: [docs/PRIVACY.md](do
 - [Release process](docs/RELEASE_PROCESS.md) · [Release signing](docs/RELEASE_SIGNING.md) · [GitHub Actions](docs/GITHUB_ACTIONS.md)
 - [Installation](docs/INSTALLATION.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [Known limitations](docs/KNOWN_LIMITATIONS.md) · [Roadmap](docs/ROADMAP.md)
 - [Completion matrix](docs/COMPLETION_MATRIX.md) · [PR #1 review findings](docs/PR1_REVIEW.md)
-- [Signing handover](docs/SIGNING_HANDOVER.md)
+- [Signing handover](docs/SIGNING_HANDOVER.md) · [Real-device testing](docs/DEVICE_TESTING.md)
 
 ## License
 

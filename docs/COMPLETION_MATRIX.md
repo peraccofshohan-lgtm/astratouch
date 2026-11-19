@@ -212,7 +212,7 @@ tested.
 | Emulator matrix API 29/33/36 | ✅ TESTED | Final state: run `44486247931`, all three API levels green, results asserted non-empty. Getting here found five real problems: run `44478519934` was a **hollow pass** (zero tests executed); `44479827314` exposed a duplicate-DataStore crash, ambiguous calculator text matching and a Hilt `hiltViewModel()` failure in `HiltTestActivity`; `44485199536` showed correlated cold-cache failures when three jobs resolved dependencies simultaneously. All are fixed, and the workflow now fails if no test XML is produced |
 | Lint (`lintDebug`) | ✅ TESTED | Passed in run `44474918008` |
 | Lint (`lintRelease`) | ✅ TESTED | Passed inside the release pipeline, run `44483918522`, step 9 — before the secrets gate, so it is verified without any signing material |
-| Physical device testing | ➖ N/A | No device available; documented as a gap in KNOWN_LIMITATIONS |
+| Physical device testing | ➖ N/A | No device available here. A complete 14-step manual pass is provided in [DEVICE_TESTING.md](DEVICE_TESTING.md) so the release can be validated on real hardware |
 | TalkBack audit | ➖ N/A | Requires a human screen-reader user; documented as a gap |
 | Performance profiling | ➖ N/A | See KNOWN_LIMITATIONS |
 

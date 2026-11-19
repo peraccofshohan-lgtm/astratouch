@@ -98,6 +98,10 @@ android {
         buildConfigField("int", "ASTRA_VERSION_CODE", astraVersionCode.toString())
         buildConfigField("int", "ASTRA_MIN_SDK", astraMinSdk.toString())
         buildConfigField("int", "ASTRA_TARGET_SDK", astraTargetSdk.toString())
+        // Declared here so *every* variant has the field; overridden per build type.
+        // BuildConfig fields only exist in variants that declare them, and a field
+        // referenced from shared source must be present in all of them.
+        buildConfigField("boolean", "ASTRA_DEBUG_BUILD", "false")
     }
 
     signingConfigs {
@@ -162,7 +166,6 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            buildConfigField("boolean", "ASTRA_DEBUG_BUILD", "false")
         }
     }
 

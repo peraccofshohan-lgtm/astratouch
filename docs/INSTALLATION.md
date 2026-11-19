@@ -3,6 +3,10 @@
 AstraTouch ships as a single signed APK attached to each GitHub Release. There is
 no Play Store listing and no account.
 
+**Current release:** [v1.0.2](https://github.com/peraccofshohan-lgtm/astratouch/releases/tag/v1.0.2)
+— [direct APK download](https://github.com/peraccofshohan-lgtm/astratouch/releases/download/v1.0.2/AstraTouch-v1.0.2-personal-debug.apk)
+(5,948,860 bytes).
+
 ## Requirements
 
 - Android 10 (API 29) or newer, up to Android 16 (API 36).
@@ -14,7 +18,7 @@ no Play Store listing and no account.
 Open the [latest release](https://github.com/peraccofshohan-lgtm/astratouch/releases/latest)
 and download:
 
-- `AstraTouch-vX.Y.Z.apk` — the signed application
+- `AstraTouch-vX.Y.Z-personal-debug.apk` — the signed application
 - `SHA256SUMS.txt` — the checksum to verify your download
 - `release-metadata.json` — build provenance
 

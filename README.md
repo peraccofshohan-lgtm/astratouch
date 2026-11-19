@@ -33,10 +33,15 @@ to your context through profiles — entirely offline.
 
 ## Install
 
-1. Download `AstraTouch-v1.0.0.apk` from the [latest GitHub Release](https://github.com/peraccofshohan-lgtm/astratouch/releases/latest).
+1. Download
+   [`AstraTouch-v1.0.2-personal-debug.apk`](https://github.com/peraccofshohan-lgtm/astratouch/releases/download/v1.0.2/AstraTouch-v1.0.2-personal-debug.apk)
+   from [release v1.0.2](https://github.com/peraccofshohan-lgtm/astratouch/releases/tag/v1.0.2)
+   (5,948,860 bytes, SHA-256 `848b5716…0a9ff8`).
 2. Verify the download against `SHA256SUMS.txt` (see [docs/INSTALLATION.md](docs/INSTALLATION.md)).
-3. Allow install from your browser/file manager when Android prompts (the APK is signed with a
-   dedicated release key, not the Android debug key).
+3. Allow install from your browser/file manager when Android prompts. The APK is
+   signed with a stable personal-use debug identity — see
+   [docs/RELEASE_SIGNING.md](docs/RELEASE_SIGNING.md) for what that guarantees and
+   what it does not.
 4. Open AstraTouch → **Onboarding** → grant *Display over other apps* → enable the
    **AstraTouch Actions** accessibility service → start the bubble.
 

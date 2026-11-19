@@ -199,6 +199,24 @@ unsigned APK.
 Gate 17 is the one that matters most: it verifies the bytes a *user* will download,
 not the bytes that happened to be on disk.
 
+### Published evidence
+
+Run [`44602580072`](https://github.com/peraccofshohan-lgtm/astratouch/actions/runs/44602580072)
+on tag `v1.0.2` passed all seventeen gates and published
+[release `v1.0.2`](https://github.com/peraccofshohan-lgtm/astratouch/releases/tag/v1.0.2):
+
+| Field | Value |
+| --- | --- |
+| APK | `AstraTouch-v1.0.2-personal-debug.apk` |
+| Size | 5,948,860 bytes |
+| SHA-256 | `848b571643a08d07e8cb8cac0b8b702abf7abfab9975d649af51f968cb0a9ff8` |
+| Package / version | `com.astratouch.app`, 1.0.2 (10002) |
+| Signer cert SHA-256 | `198476e1822fb79f6c85c426c5c450c66c87db2982b88f90139c1eae19b3920e` |
+
+The signer digest reported by the pipeline is the same value pinned in
+`.github/signing-identity.txt`, so the published artifact and the committed identity
+agree.
+
 ---
 
 ## Limitations

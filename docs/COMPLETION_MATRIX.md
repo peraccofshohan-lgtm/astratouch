@@ -261,9 +261,10 @@ signing secrets are required. See [RELEASE_SIGNING.md](RELEASE_SIGNING.md).
 | Badging assertions | ✅ BUILT | package / versionName / versionCode / minSdk / targetSdk asserted in the publish path |
 | Checksums + metadata | ✅ BUILT | `SHA256SUMS.txt`, `release-metadata.json` (incl. `signingCertificateSha256`), post-publish re-download and re-hash |
 | Release notes | ✅ BUILT | `docs/releases/v1.0.0.md`, `v1.0.1.md`, `v1.0.2.md` |
-| **Produce a signed v1.0.2 APK** | 🟡 IN PROGRESS | The signed `debugPersonal` APK builds in CI and its signer is verified. The release run is what publishes it; it has not been observed green on tag `v1.0.2` yet |
-| **Publish the GitHub Release** | 🟡 IN PROGRESS | Zero releases are published so far. Tags `v1.0.0` and `v1.0.1` were burned against the old secrets-based pipeline and must not be reused |
-| Git tag `v1.0.2` | ⏳ NOT YET | To be created only after the source above is committed and green |
+| **Produce a signed v1.0.2 APK** | ✅ TESTED | 5,948,860-byte APK built and signed in run `44602580072`; `apksigner verify` reported `Verifies` with a v2 scheme, and the signer digest read by `keytool` equals the pinned identity |
+| **Publish the GitHub Release** | ✅ TESTED | [Release `v1.0.2`](https://github.com/peraccofshohan-lgtm/astratouch/releases/tag/v1.0.2) published with 4 assets; the workflow re-downloaded the published APK and re-checked its SHA-256 |
+| Git tag `v1.0.2` | ✅ TESTED | Annotated tag pushed; it triggered run `44602580072` end to end |
+| **Install on a real device** | ⛔ NOT TESTED | No physical device was available. CI proves the build, the tests and the signature — not the touch ergonomics. See [DEVICE_TESTING.md](DEVICE_TESTING.md) |
 
 ### Why v1.0.0 and v1.0.1 were never published
 
@@ -291,7 +292,7 @@ on the replacement strategy, and it needs no secrets at all.
 | 03 Implementation | ✅ Complete (2 items ⚠️ LIMITED by documented design, 3 🟡 MANUAL) |
 | 04 QA | ✅ Unit tests, lint, PR workflow and the emulator matrix (API 29/33/36) all green, plus the signed `debugPersonal` build verified in CI (run `44592475036`) |
 | 05 Documentation | ✅ Complete — 22 documents + release notes |
-| 06 Release | 🟡 **Not complete.** The signing blocker is gone — the personal-use debug identity is derived deterministically, needs no secrets, and CI verifies the built APK's signer against the pinned fingerprint (run `44592475036`). What remains is publishing: no release exists yet and tag `v1.0.2` has not been pushed. |
+| 06 Release | ✅ The signed APK is published. Run `44602580072` passed every gate and published [release `v1.0.2`](https://github.com/peraccofshohan-lgtm/astratouch/releases/tag/v1.0.2) with a verified signature and checksum. Not tested on physical hardware. |
 
 Nothing in this matrix is marked TESTED without a CI run to point at, and nothing
 is marked BUILT unless it compiles in that run.

@@ -316,7 +316,7 @@ class ActionRegistry @Inject constructor(
                 ActionIds.DND_PANEL, "Do Not Disturb", "Open the Do Not Disturb settings page.", "ic_moon",
                 ActionCategory.DEVICE, minApi = 29,
             ),
-            SettingsPageHandler(context, Settings.ACTION_ZEN_MODE_SETTINGS, Settings.ACTION_SOUND_SETTINGS),
+            SettingsPageHandler(context, "android.settings.ZEN_MODE_SETTINGS", Settings.ACTION_SOUND_SETTINGS),
             ::always,
         )
 

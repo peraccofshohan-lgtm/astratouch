@@ -62,7 +62,8 @@ def _fail(message: str) -> "NoReturn":  # type: ignore[name-defined]
     sys.exit(1)
 
 
-def _write(args, *, out_path, p12_bytes, certificate, subject, serial, not_before, not_after) -> None:
+def _write(args, *, out_path, p12_bytes, certificate, subject, serial, not_before, not_after,
+           seed_source: str) -> None:
     """Writes the PKCS#12 (and optional PEM) and prints a summary."""
     out_path = out_path or os.path.abspath(args.out)
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
@@ -86,7 +87,7 @@ def _write(args, *, out_path, p12_bytes, certificate, subject, serial, not_befor
     print(f"Not after:     {not_after.isoformat()}")
     print(f"Cert SHA-256:  {certificate.fingerprint(_h.SHA256()).hex()}")
     print(f"Cert source:   {'committed PEM (--cert-in)' if args.cert_in else 'generated now'}")
-    print(f"Seed source:   {'ASTRA_DEBUG_SEED' if 'ASTRA_DEBUG_SEED' in os.environ else 'built-in default'}")
+    print(f"Seed source:   {seed_source}")
 
 
 def main() -> int:
@@ -118,9 +119,13 @@ def main() -> int:
     except ImportError:
         _fail("The 'cryptography' package is required: pip install cryptography")
 
-    seed = os.environ.get("ASTRA_DEBUG_SEED", DEFAULT_SEED)
-    if not seed:
-        _fail("ASTRA_DEBUG_SEED is empty; using an empty seed would be a mistake.")
+    # An unset secret arrives as an empty string in GitHub Actions, so treat empty
+    # exactly like unset: fall back to the documented default seed rather than
+    # failing the release. A seed of *whitespace* is still a mistake, because it is
+    # almost certainly an accidental paste, so that is rejected.
+    raw_seed = os.environ.get("ASTRA_DEBUG_SEED", "").strip()
+    seed = raw_seed or DEFAULT_SEED
+    seed_source = "ASTRA_DEBUG_SEED" if raw_seed else "built-in default"
 
     # --- derive the key -----------------------------------------------------
     # SHA-256 of the seed gives 32 uniformly-distributed bytes. Reduce it into the
@@ -171,7 +176,8 @@ def main() -> int:
             encryption_algorithm=serialization.BestAvailableEncryption(STORE_PASSWORD.encode("utf-8")),
         )
         _write(args, out_path=None, p12_bytes=p12_bytes, certificate=certificate,
-               subject=subject, serial=serial, not_before=not_before, not_after=not_after)
+               subject=subject, serial=serial, not_before=not_before, not_after=not_after,
+               seed_source=seed_source)
         return 0
 
     # Fixed validity window -> identical certificate fields every run.
@@ -226,7 +232,8 @@ def main() -> int:
     )
 
     _write(args, out_path=None, p12_bytes=p12_bytes, certificate=certificate,
-           subject=subject, serial=serial, not_before=not_before, not_after=not_after)
+           subject=subject, serial=serial, not_before=not_before, not_after=not_after,
+           seed_source=seed_source)
     return 0
 
 

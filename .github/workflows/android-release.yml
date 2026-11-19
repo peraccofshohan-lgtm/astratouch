@@ -260,15 +260,29 @@ jobs:
           "$AAPT2" dump badging "$APK" > badging.txt 2>&1 || true
           grep -E "^package:|sdkVersion|targetSdkVersion" badging.txt || true
 
+          # aapt2's key names have varied across build-tools versions (and it may
+          # emit a codename alongside the numeric sdk), so accept both spellings.
           PKG=$(sed -n "s/^package: name='\([^']*\)'.*/\1/p" badging.txt | head -1)
           VNAME=$(sed -n "s/.*versionName='\([^']*\)'.*/\1/p" badging.txt | head -1)
           VCODE=$(sed -n "s/.*versionCode='\([^']*\)'.*/\1/p" badging.txt | head -1)
-          MINSDK=$(sed -n "s/^sdkVersion:'\([0-9]*\)'.*/\1/p" badging.txt | head -1)
+          MINSDK=$(sed -n "s/^\(min\?sdkVersion\|sdkVersion\):'\([0-9]*\)'.*/\2/p" badging.txt | head -1)
           TARGETSDK=$(sed -n "s/^targetSdkVersion:'\([0-9]*\)'.*/\1/p" badging.txt | head -1)
+          [ -n "$MINSDK" ] || MINSDK=$(grep -oE "sdkVersion:'[0-9]+'" badging.txt | head -1 | grep -oE '[0-9]+' || true)
+          [ -n "$TARGETSDK" ] || TARGETSDK=$(grep -oE "targetSdkVersion:'[0-9]+'" badging.txt | head -1 | grep -oE '[0-9]+' || true)
 
           echo "package=$PKG versionName=$VNAME versionCode=$VCODE min=$MINSDK target=$TARGETSDK"
 
-          fail() { echo "::error::$1"; sed -n '1,10p' badging.txt; exit 1; }
+          fail() {
+            echo "::error::$1"
+            # Lift the evidence into annotations; the raw log archive is not always
+            # retrievable in this environment.
+            n=0
+            while IFS= read -r line; do
+              n=$((n+1)); [ "$n" -gt 12 ] && break
+              echo "::warning::badging| $line"
+            done < badging.txt
+            exit 1
+          }
           [ "$PKG" = "com.astratouch.app" ] || fail "Unexpected applicationId: $PKG"
           [ "$VNAME" = "${{ steps.version.outputs.version }}" ] || fail "versionName mismatch: $VNAME"
           [ "$VCODE" = "${{ steps.consistency.outputs.code }}" ] || fail "versionCode mismatch: $VCODE"

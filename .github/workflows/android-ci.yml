@@ -102,13 +102,22 @@ jobs:
           SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
           BUILD_TOOLS=$(ls -d "$SDK"/build-tools/* 2>/dev/null | sort -V | tail -n 1)
           APK=$(find app/build/outputs/apk/debugPersonal -name '*.apk' ! -name '*unsigned*' | head -1)
+          echo "SDK=$SDK"; echo "BUILD_TOOLS=$BUILD_TOOLS"; echo "APK=$APK"
           "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK" | tee signature.txt
           EXPECTED=$(grep -m1 'SHA-256 fingerprint' .github/signing-identity.txt | awk -F': *' '{print $2}')
-          ACTUAL=$(grep -m1 -oP 'Signer #1 certificate SHA-256 digest: \K[0-9a-f]+' signature.txt)
-          [ "$ACTUAL" = "$EXPECTED" ] || {
+          ACTUAL=$(sed -n 's/.*Signer #1 certificate SHA-256 digest: *//p' signature.txt | head -1 | tr -d ' \r')
+          echo "expected=<$EXPECTED>"
+          echo "actual=<$ACTUAL>"
+          echo "--- raw digest lines ---"
+          grep -i 'digest' signature.txt || echo "(no digest line found)"
+          if [ -z "$ACTUAL" ]; then
+            echo "::error::apksigner did not report a signer certificate digest"
+            exit 1
+          fi
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
             echo "::error::APK signer $ACTUAL != stable identity $EXPECTED"
             exit 1
-          }
+          fi
           echo "::notice::Personal APK signed by the stable identity ($ACTUAL)"
 
       - name: Report failures as annotations

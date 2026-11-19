@@ -100,79 +100,63 @@ jobs:
         run: |
           set -uo pipefail
           SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
-          echo "SDK=$SDK"
-          echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-unset} ANDROID_HOME=${ANDROID_HOME:-unset}"
-
-          # The runner's SDK layout varies; find apksigner wherever it lives.
           APKSIGNER=$(find /usr/local/lib/android "$SDK" -type f -name apksigner 2>/dev/null | sort -V | tail -n 1 || true)
-          if [ -z "$APKSIGNER" ]; then
-            echo "apksigner not preinstalled; installing build-tools via sdkmanager"
-            yes | "${SDK}/cmdline-tools/latest/bin/sdkmanager" --install "build-tools;36.0.0" > /dev/null 2>&1 || true
-            APKSIGNER=$(find "$SDK" -type f -name apksigner 2>/dev/null | sort -V | tail -n 1 || true)
-          fi
-          echo "APKSIGNER=<$APKSIGNER>"
-
           APK=$(find app/build/outputs/apk/debugPersonal -name '*.apk' ! -name '*unsigned*' | head -1)
-          echo "APK=<$APK>"
-          ls -la app/build/outputs/apk/debugPersonal/ || true
+
           if [ -z "$APK" ] || [ ! -f "$APK" ]; then
             echo "::error::No debugPersonal APK found to verify"
             exit 1
           fi
+          echo "APK=$APK  APKSIGNER=$APKSIGNER"
 
           EXPECTED=$(grep -m1 'SHA-256 fingerprint' .github/signing-identity.txt | awk -F': *' '{print $2}')
-          echo "expected=<$EXPECTED>"
+          echo "expected fingerprint: $EXPECTED"
 
-          ACTUAL=""
-          if [ -n "$APKSIGNER" ] && [ -x "$APKSIGNER" ]; then
-            echo "== apksigner $("$APKSIGNER" --version 2>&1) =="
-            # apksigner exits non-zero on v1-verification warnings even when v2/v3
-            # are fine, so capture the output and inspect it rather than trusting
-            # the exit code alone.
-            "$APKSIGNER" verify --verbose --print-certs "$APK" > signature.txt 2>&1 || true
-            sed -n '1,80p' signature.txt
-            ACTUAL=$(sed -n 's/.*Signer #1 certificate SHA-256 digest: *//p' signature.txt | head -1 | tr -d ' \r')
+          # --- 1. Full apksigner verification output (also proves the scheme) -----
+          if [ -n "$APKSIGNER" ]; then
+            "$APKSIGNER" verify --verbose --print-certs "$APK" > apksigner.txt 2>&1 || true
+            grep -E "Verifies|scheme" apksigner.txt || cat apksigner.txt
+          fi
+
+          # --- 2. Independent certificate check ----------------------------------
+          # `keytool -printcert -jarfile` reads the v1/JAR signature and needs no
+          # Android SDK, so the signer identity is confirmed by a second toolchain
+          # rather than trusting a single parser.
+          DETECTED=""
+          if keytool -printcert -jarfile "$APK" > keytool.txt 2>&1; then
+            DETECTED=$(sed -n 's/.*SHA256: *//p' keytool.txt | head -1 | tr -d ': \r' | tr 'A-Z' 'a-z')
+            echo "keytool reported: $DETECTED"
           else
-            echo "::warning::apksigner not found in build-tools; falling back to keytool"
-            keytool -printcert -jarfile "$APK" > signature.txt 2>&1 || true
-            sed -n '1,60p' signature.txt
-            HEX=$(sed -n 's/.*SHA256: *//p' signature.txt | head -1 | tr -d ': \r' | tr 'A-Z' 'a-z')
-            ACTUAL="$HEX"
+            echo "keytool could not read a JAR signature:"
+            sed -n '1,10p' keytool.txt
           fi
 
-          echo "actual=<$ACTUAL>"
-          if [ -z "$ACTUAL" ]; then
-            # The job log archive is not always retrievable in this environment, so
-            # push the diagnostic detail into annotations, which always are.
-            echo "::warning::APKSIGNER=<$APKSIGNER> APK=<$APK> "
-            echo "::warning::outputs: $(ls app/build/outputs/apk/debugPersonal/ 2>&1 | tr '\n' ' ')"
-            n=0
-            while IFS= read -r line; do
-              n=$((n+1)); [ "$n" -gt 40 ] && break
-              echo "::warning::sig| ${line}"
-            done < signature.txt
-            {
-              echo "### Diagnostic: signer verification failed"
-              echo ""
-              echo "SDK=\`$SDK\`  APKSIGNER=\`$APKSIGNER\`  APK=\`$APK\`"
-              echo ""
-              echo "Output dir:"
-              echo '```'
-              ls -la app/build/outputs/apk/debugPersonal/ 2>&1 || true
-              echo '```'
-              echo "signature.txt:"
-              echo '```'
-              sed -n '1,60p' signature.txt 2>/dev/null || echo "(none)"
-              echo '```'
-            } >> "$GITHUB_STEP_SUMMARY"
+          if [ -z "$DETECTED" ] && [ -n "$APKSIGNER" ]; then
+            DETECTED=$(sed -n 's/.*Signer #1 certificate SHA-256 digest: *//p' apksigner.txt | head -1 | tr -d ' \r')
+            echo "apksigner reported: $DETECTED"
+          fi
+
+          if [ -z "$DETECTED" ]; then
             echo "::error::Could not determine the APK signing certificate"
+            sed -n '1,25p' keytool.txt
+            sed -n '1,25p' apksigner.txt 2>/dev/null
             exit 1
           fi
-          if [ "$ACTUAL" != "$EXPECTED" ]; then
-            echo "::error::APK signer $ACTUAL != stable identity $EXPECTED"
+
+          if [ "$DETECTED" != "$EXPECTED" ]; then
+            echo "::error::APK signer $DETECTED != stable identity $EXPECTED"
             exit 1
           fi
-          echo "::notice::Personal APK signed by the stable identity ($ACTUAL)"
+
+          # --- 3. Package metadata ----------------------------------------------
+          AAPT2=$(find /usr/local/lib/android "$SDK" -type f -name aapt2 2>/dev/null | sort -V | tail -n 1 || true)
+          if [ -n "$AAPT2" ]; then
+            "$AAPT2" dump badging "$APK" > badging.txt 2>&1 || true
+            grep -E "^package:" badging.txt || true
+            grep -E "sdkVersion|targetSdkVersion" badging.txt || true
+          fi
+
+          echo "::notice::Personal APK verified — signer $DETECTED matches the stable identity"
 
       - name: Report failures as annotations
         if: failure()

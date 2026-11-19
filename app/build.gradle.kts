@@ -115,10 +115,11 @@ android {
                 storePassword = cfg.storePassword
                 keyAlias = cfg.keyAlias
                 keyPassword = cfg.keyPassword
-                // Also satisfies AGP's check that a debug signing config uses a
-                // debug certificate; this one is a purpose-built debug identity.
-                isV1SigningEnabled = true
-                isV2SigningEnabled = true
+                // v2 is required on API 24+; v1 is enabled as well so the
+                // certificate can be read by any JAR-based tool (keytool, jarsigner)
+                // and not only by apksigner. Both carry the same certificate.
+                enableV1Signing = true
+                enableV2Signing = true
             }
         }
     }

@@ -134,6 +134,20 @@ jobs:
 
           echo "actual=<$ACTUAL>"
           if [ -z "$ACTUAL" ]; then
+            {
+              echo "### Diagnostic: signer verification failed"
+              echo ""
+              echo "SDK=\`$SDK\`  BUILD_TOOLS=\`$BUILD_TOOLS\`  APK=\`$APK\`"
+              echo ""
+              echo "Output dir:"
+              echo '```'
+              ls -la app/build/outputs/apk/debugPersonal/ 2>&1 || true
+              echo '```'
+              echo "signature.txt:"
+              echo '```'
+              sed -n '1,60p' signature.txt 2>/dev/null || echo "(none)"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
             echo "::error::Could not determine the APK signing certificate"
             exit 1
           fi

@@ -142,6 +142,15 @@ jobs:
 
           echo "actual=<$ACTUAL>"
           if [ -z "$ACTUAL" ]; then
+            # The job log archive is not always retrievable in this environment, so
+            # push the diagnostic detail into annotations, which always are.
+            echo "::warning::APKSIGNER=<$APKSIGNER> APK=<$APK> TOOLS=<$BUILD_TOOLS>"
+            echo "::warning::outputs: $(ls app/build/outputs/apk/debugPersonal/ 2>&1 | tr '\n' ' ')"
+            n=0
+            while IFS= read -r line; do
+              n=$((n+1)); [ "$n" -gt 7 ] && break
+              echo "::warning::sig| ${line}"
+            done < signature.txt
             {
               echo "### Diagnostic: signer verification failed"
               echo ""

@@ -32,14 +32,18 @@ Get-FileHash .\AstraTouch-v1.0.0.apk -Algorithm SHA256
 # compare with the value in SHA256SUMS.txt
 ```
 
-Optionally verify the signature with Android build-tools:
+Verify the signature. Either tool works — `keytool` needs only a JDK:
 
 ```bash
-apksigner verify --print-certs AstraTouch-v1.0.0.apk
+keytool -printcert -jarfile AstraTouch-v1.0.2-personal-debug.apk
+# or, with Android build-tools:
+apksigner verify --verbose --print-certs AstraTouch-v1.0.2-personal-debug.apk
 ```
 
-You should see a non-debug certificate (`CN=AstraTouch Releases…`) and both v2
-and v3 signature schemes.
+You should see **`CN=AstraTouch Debug, O=AstraTouch Personal, C=BD`** and a valid v2
+signature. AstraTouch ships debug-signed on purpose: it uses one stable identity for
+every release so that updates install cleanly over each other. See
+[RELEASE_SIGNING.md](RELEASE_SIGNING.md) for what that does and does not guarantee.
 
 ## 3. Install
 

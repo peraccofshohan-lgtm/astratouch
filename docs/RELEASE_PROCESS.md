@@ -1,26 +1,31 @@
 # Release process
 
 AstraTouch releases are produced only by `.github/workflows/android-release.yml`.
-There is no manual APK upload, no debug-signed artifact, and no release without a
-verified signature.
+There is no manual APK upload and no release without a verified signature.
+
+Release artifacts are signed with a **stable personal-use debug identity**. That is
+deliberate, not a shortcut: the same certificate is reused for every build so that
+one release can update the previous one. See
+[RELEASE_SIGNING.md](RELEASE_SIGNING.md).
 
 ## One-time setup
 
-1. **Create the signing key** (once, ever):
-   ```bash
-   ./scripts/setup-signing.sh
-   ```
-   This generates `~/.astratouch-signing/astratouch-release.jks` (4096-bit RSA,
-   10 000-day validity), base64-encodes it, and uploads the four secrets.
-2. **Back the keystore up** to a password manager and an offline copy. Losing it
-   permanently prevents updates for existing installs.
-3. **Protect the `release` environment** (Settings → Environments → `release`) with
-   required reviewers if you want a human gate on publishing.
+**There is none.** No keystore to generate, no secret to store, no backup to keep.
 
-If your automation token cannot write repository secrets (as is the case for the
-Arena-managed token in this repo — it returns HTTP 403 on
-`/actions/secrets`), run `setup-signing.sh` yourself once with an admin-authenticated
-`gh`, or paste the four values into Settings → Secrets and variables → Actions.
+The signing identity lives in two committed files:
+
+| File | Contents |
+| --- | --- |
+| `signing/astratouch-debug-cert.pem` | the public certificate (no private key) |
+| `.github/signing-identity.txt` | the pinned fingerprint the pipeline enforces |
+
+The matching private key is re-derived at build time by
+`scripts/derive-debug-keystore.py` and written only to the runner's temporary
+directory. Nothing needs to be provisioned, and nothing can be lost.
+
+If you want the derivation itself to be private, set the optional
+`ASTRA_DEBUG_SEED` secret **once, before the first release**, and never change it
+afterwards — changing it rotates the identity and strands every existing install.
 
 ## Cutting a release
 
@@ -69,15 +74,16 @@ This leaves room for 99 patches and 99 minors per major without ever colliding.
 | --- | --- | --- |
 | 1 | Tag matches `v\d+\.\d+\.\d+` | Abort, no artifacts |
 | 2 | `versionName` == tag, `versionCode` == formula | Abort |
-| 3 | All four signing secrets present | Abort; never falls back to a debug key |
+| 3 | Signing identity derived and fingerprint matches `.github/signing-identity.txt` | Abort; an unexpected signer would strand existing installs |
 | 4 | Unit tests pass | Abort |
-| 5 | `lintRelease` clean | Abort |
-| 6 | `assembleRelease` produces an APK | Abort |
-| 7 | `apksigner verify` → not `CN=Android Debug`, v2+v3 present | Abort |
-| 8 | `aapt2 dump badging` → package, versionName, versionCode, minSdk 29, targetSdk 36 | Abort |
-| 9 | `SHA256SUMS.txt` written and `sha256sum -c` passes | Abort |
-| 10 | `gh release create` (skips if the release already exists) | Abort |
-| 11 | Re-download the published APK and re-check its SHA-256 | Abort + report |
+| 5 | Lint clean | Abort |
+| 6 | `assembleDebugPersonal` produces an APK | Abort |
+| 7 | APK exists and is > 1 MB | Abort |
+| 8 | `apksigner verify` → `Verifies` with v2/v3, signer == pinned identity | Abort |
+| 9 | `aapt2 dump badging` → package, versionName, versionCode, minSdk 29, targetSdk 36 | Abort |
+| 10 | `SHA256SUMS.txt` written and `sha256sum -c` passes | Abort |
+| 11 | `gh release create` (fails if the release already exists) | Abort |
+| 12 | Re-download the published APK and re-check its SHA-256 | Abort + report |
 
 ## Release assets
 
@@ -110,17 +116,16 @@ git checkout main && git merge --no-ff hotfix/1.0.1
 ## Dry runs
 
 The workflow takes a `dry_run` boolean input. With `dry_run: true` it verifies
-everything that does not need signing material and then stops:
+everything up to the build and then stops:
 
 | Gate | Dry run |
 | --- | --- |
 | 1. Tag is semver | ✅ runs |
 | 2. versionName / versionCode consistency | ✅ runs |
-| 3. Signing secrets present | ⏭ skipped |
+| 3. Signing identity + fingerprint | ✅ runs |
 | 4. Unit tests | ✅ runs |
-| 5. `lintRelease` | ✅ runs |
-| 6. Signed build | ⏭ skipped |
-| 7–11. Signature, badging, checksums, publish, re-verify | ⏭ skipped |
+| 5. Lint | ✅ runs |
+| 6–12. Build, signature, badging, checksums, publish, re-verify | ⏭ skipped |
 
 A summary table is written to the job's step summary. This is the supported way to
 validate the pipeline before the signing secrets exist, and it proves the release

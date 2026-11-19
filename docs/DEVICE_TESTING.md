@@ -13,7 +13,7 @@ Budget about 25 minutes for the core pass.
 
 - A device on Android 10 (API 29) or newer. Ideally test **two**: one modern
   (Android 13+) and one with an OEM skin (Samsung, Xiaomi, OnePlus, Oppo, Vivo).
-- The release APK and `SHA256SUMS.txt` from the GitHub Release.
+- The published APK and `SHA256SUMS.txt` from the GitHub Release.
 - Optional: `adb` on a computer, for logcat.
 
 ## 1. Verify the download before installing
@@ -21,40 +21,54 @@ Budget about 25 minutes for the core pass.
 This is the only step that proves you have the artifact the project published.
 
 ```bash
-sha256sum AstraTouch-v1.0.1.apk
+sha256sum AstraTouch-v1.0.2-personal-debug.apk
 cat SHA256SUMS.txt          # the two hashes must match exactly
 ```
 
-Optional, requires Android build-tools:
+Check the signature. Either tool works; `keytool` ships with the JDK and needs no
+Android SDK:
 
 ```bash
-apksigner verify --print-certs AstraTouch-v1.0.1.apk
+keytool -printcert -jarfile AstraTouch-v1.0.2-personal-debug.apk
+# or, with Android build-tools:
+apksigner verify --verbose --print-certs AstraTouch-v1.0.2-personal-debug.apk
 ```
 
 Expected:
 
-- `Verifies` on the first line
-- `Verified using v2 scheme: true` and `v3 scheme: true`
-- certificate DN containing **`CN=AstraTouch Releases`**, *not* `CN=Android Debug`
-- a certificate SHA-256 that equals `signingCertificateSha256` in
-  `release-metadata.json`
+- `Verifies`, with `Verified using v2 scheme … : true`
+- certificate DN **`CN=AstraTouch Debug, O=AstraTouch Personal, C=BD`**
 
-Then on the device:
+  This is **not** `CN=Android Debug`. AstraTouch uses a purpose-built, *stable*
+  debug identity rather than the throwaway key Android generates per machine. It is
+  a debug certificate by intent, but a specific and reproducible one.
+- certificate SHA-256
+  `198476e1822fb79f6c85c426c5c450c66c87db2982b88f90139c1eae19b3920e`,
+  matching `signingCertificateSha256` in `release-metadata.json` and the fingerprint
+  pinned in `.github/signing-identity.txt`
+
+Then check the package metadata:
 
 ```bash
-aapt2 dump badging AstraTouch-v1.0.1.apk | head -3
+aapt2 dump badging AstraTouch-v1.0.2-personal-debug.apk | head -3
 ```
 
-Expect `package: name='com.astratouch.app' versionCode='10001' versionName='1.0.1'`,
-`sdkVersion:'29'`, `targetSdkVersion:'36'`.
+Expect `package: name='com.astratouch.app' versionCode='10002' versionName='1.0.2'`,
+`sdkVersion:'29'`, `targetSdkVersion:'36'`. The application id must be exactly
+`com.astratouch.app` — **not** `com.astratouch.app.debug`. The `.debug` variant is a
+development build that installs as a separate app and cannot update this one.
 
 ## 2. Install
 
-1. Copy the APK to the device (USB, or `adb install -r AstraTouch-v1.0.1.apk`).
+1. Copy the APK to the device (USB, or
+   `adb install -r AstraTouch-v1.0.2-personal-debug.apk`).
 2. Tap it in Files/Downloads. Allow your file manager to install unknown apps when
    prompted.
-3. If you have any earlier AstraTouch build with a different key, uninstall it
-   first — Android will report a signature mismatch otherwise.
+3. Upgrading from an earlier AstraTouch release should work **in place**, keeping
+   your data — every release is signed with the same certificate.
+4. You will need to uninstall first only if you installed a build signed with a
+   *different* key: a development `debug` build, or anything from before the signing
+   strategy changed in v1.0.2.
 
 **Watch for:** a `Parse error` means a truncated download (re-verify the hash).
 A signature-mismatch error means you are installing a build signed by someone else.
@@ -172,7 +186,8 @@ adb shell run-as com.astratouch.app ls files/captures
 # expect: empty
 ```
 
-*(On a release build `run-as` requires a debuggable build; if it refuses, confirm
+*(`run-as` requires a debuggable build. The published `debugPersonal` artifact is
+deliberately **not** debuggable, so this step applies only to development builds; if it refuses, confirm
 from the app — the Recordings section must be empty and show "No recordings yet".)*
 
 ## 11. Reboot behaviour — the Android 12+ fix

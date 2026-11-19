@@ -102,42 +102,41 @@ nothing:
 2. **Version consistency** — `gradle.properties` `astratouch.versionName` must
    equal the tag without `v`, and `versionCode` must equal
    `major*10000 + minor*100 + patch`.
-3. **Secrets present** — `ANDROID_KEYSTORE_BASE64`,
-   `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. If
-   any is missing the job stops with an explicit message; it never falls back to a
-   debug key.
-4. **Tests** — `:app:testDebugUnitTest` must pass.
-5. **Lint release** — `:app:lintRelease` (errors fail the build).
-6. **Build** — `:app:assembleRelease` with the decoded keystore written to a
-   temporary `RUNNER_TEMP` path, removed in an `always()` cleanup step.
-7. **Signature verification** — `apksigner verify --print-certs`; the certificate
-   must **not** contain `CN=Android Debug`, and v2/v3 signatures must be present.
-8. **Badging assertions** — `aapt2 dump badging` must report
+3. **Stable signing identity** — `scripts/derive-debug-keystore.py` derives the
+   key and pairs it with the committed public certificate. The workflow then asserts
+   the certificate fingerprint matches `.github/signing-identity.txt`. **No secret
+   is read.**
+4. **Unit tests** — `:app:testDebugUnitTest` must pass.
+5. **Lint** — `:app:lintDebug` (errors fail the build).
+6. **Build** — `:app:assembleDebugPersonal`. The keystore is written to a
+   temporary `RUNNER_TEMP` path and dies with the runner.
+7. **APK presence** — the artifact must exist and be larger than 1 MB, so a
+   truncated or unsigned output cannot slip through.
+8. **Signature verification** — `apksigner verify --verbose --print-certs` must
+   report `Verifies` with a v2 (or v3) scheme, and the signer's SHA-256 must equal
+   the pinned fingerprint. It rejects an APK signed by Android's automatic debug
+   key.
+9. **Badging assertions** — `aapt2 dump badging` must report
    `package name='com.astratouch.app'`, the expected `versionName` and
    `versionCode`, `sdkVersion:'29'`, `targetSdkVersion:'36'`.
-9. **Checksums** — `SHA256SUMS.txt` plus `release-metadata.json`
-   (`tag`, commit, version, `versionCode`, `minSdk`, `targetSdk`, `builtAt`,
-   `workflowRun`, `sha256`).
-10. **Publish** — `gh release create` with the APK, checksums and metadata. If a
-    release already exists for the tag, it is skipped rather than overwritten.
-11. **Post-publish verification** — the workflow re-downloads the published APK
-    asset and re-checks its SHA-256 against `SHA256SUMS.txt`.
+10. **Checksums** — `SHA256SUMS.txt` plus `release-metadata.json`
+    (`tag`, commit, version, `versionCode`, `minSdk`, `targetSdk`, `builtAt`,
+    `workflowRun`, `sha256`, `signingCertificateSha256`). The checksum is verified
+    once more with `sha256sum -c`.
+11. **Publish** — `gh release create`. An existing release for the tag is a hard
+    error rather than being overwritten, so a published artifact is never replaced
+    silently.
+12. **Post-publish verification** — the workflow re-downloads the published APK
+    asset and re-checks its SHA-256 against the recorded value.
 
 ### Required secrets
 
-Set them with `./scripts/setup-signing.sh` (generates a keystore if needed) or
-manually:
+**None.** Signing is derived, not stored. See
+[RELEASE_SIGNING.md](RELEASE_SIGNING.md).
 
-```bash
-gh secret set ANDROID_KEYSTORE_BASE64 --body "$(base64 -w 0 astratouch-release.jks)"
-gh secret set ANDROID_KEYSTORE_PASSWORD --body '…'
-gh secret set ANDROID_KEY_ALIAS --body 'astratouch'
-gh secret set ANDROID_KEY_PASSWORD --body '…'
-```
-
-The personal access token used by the automation in this repository has
-`actions: read` but not `secrets: write`, so secret upload must be done by the
-repository owner with an admin token. See [RELEASE_SIGNING.md](RELEASE_SIGNING.md).
+The only optional secret is `ASTRA_DEBUG_SEED`, which selects a different
+derivation seed. Leaving it unset is fully supported and produces the same stable
+identity every time.
 
 ## Local equivalents
 
@@ -147,7 +146,7 @@ repository owner with an admin token. See [RELEASE_SIGNING.md](RELEASE_SIGNING.m
 | Lint | `./gradlew :app:lintDebug` |
 | Debug APK | `./gradlew :app:assembleDebug` |
 | Instrumentation | `./gradlew :app:connectedDebugAndroidTest` (device/emulator attached) |
-| Release APK | `./gradlew :app:assembleRelease` |
+| Published (signed) APK | `./gradlew :app:assembleDebugPersonal` (see [BUILDING.md](BUILDING.md)) |
 
 ## Cost and runtime notes
 

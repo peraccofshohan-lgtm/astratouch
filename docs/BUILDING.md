@@ -34,14 +34,15 @@
 git clone https://github.com/peraccofshohan-lgtm/astratouch.git
 cd astratouch
 
-./gradlew :app:assembleDebug          # debug APK
+./gradlew :app:assembleDebug          # development APK (com.astratouch.app.debug)
+./gradlew :app:assembleDebugPersonal  # the published, signed APK
 ./gradlew :app:testDebugUnitTest      # JVM unit tests
 ./gradlew :app:lintDebug              # Android Lint
-./gradlew :app:assembleRelease        # release APK (needs signing config, see below)
+./gradlew :app:assembleRelease        # store-style APK (unsigned without a release key)
 ./gradlew clean                       # clean
 ```
 
-Outputs land in `app/build/outputs/apk/debug/` and `app/build/outputs/apk/release/`.
+Outputs land in `app/build/outputs/apk/{debug,debugPersonal,release}/`.
 Test reports: `app/build/reports/tests/`. Lint report:
 `app/build/reports/lint-results-debug.html`.
 
@@ -51,8 +52,8 @@ Version numbers are centralised in `gradle.properties` and consumed by
 `app/build.gradle.kts`:
 
 ```properties
-astratouch.versionName=1.0.0
-astratouch.versionCode=10000
+astratouch.versionName=1.0.2
+astratouch.versionCode=10002
 astratouch.minSdk=29
 astratouch.compileSdk=36
 astratouch.targetSdk=36
@@ -61,22 +62,34 @@ astratouch.targetSdk=36
 The release workflow refuses to publish unless the pushed tag matches
 `versionName` and `versionCode` equals `major*10000 + minor*100 + patch`.
 
-## Release signing locally
+## Signing the published build locally
 
-`app/build.gradle.kts` reads four optional Gradle properties. When any is
-missing, `assembleRelease` still succeeds but produces an **unsigned** APK, so a
-local `./gradlew assembleRelease` never leaks a debug key into a release build.
+AstraTouch is a personal-use app signed with a **stable debug identity**, not a
+production release key. The identity is derived, not stored:
 
-```properties
-# ~/.gradle/gradle.properties  (never commit)
-ASTRATOUCH_STORE_FILE=/absolute/path/astratouch-release.jks
-ASTRATOUCH_STORE_PASSWORD=…
-ASTRATOUCH_KEY_ALIAS=astratouch
-ASTRATOUCH_KEY_PASSWORD=…
+```bash
+python3 -m venv .venv && .venv/bin/pip install cryptography
+.venv/bin/python scripts/derive-debug-keystore.py \
+  --out /tmp/debug.p12 \
+  --cert-in signing/astratouch-debug-cert.pem
+
+export ASTRA_DEBUG_KEYSTORE_FILE=/tmp/debug.p12
+export ASTRA_DEBUG_KEYSTORE_PASSWORD=astratouchdebug
+export ASTRA_DEBUG_KEY_ALIAS=astratouchdebug
+export ASTRA_DEBUG_KEY_PASSWORD=astratouchdebug
+export ASTRA_REQUIRE_SIGNING=1     # fail instead of quietly building unsigned
+
+./gradlew :app:assembleDebugPersonal
 ```
 
-In CI these values come from GitHub Actions secrets — see
-[RELEASE_SIGNING.md](RELEASE_SIGNING.md) and `scripts/setup-signing.sh`.
+With `ASTRA_REQUIRE_SIGNING=1` the `verifyDebugSigning` task fails the build if no
+keystore resolved, so a misconfigured environment produces an error rather than an
+unsigned APK. No secret and no committed private key is involved — see
+[RELEASE_SIGNING.md](RELEASE_SIGNING.md).
+
+`assembleRelease` is a separate, store-style path. It stays **unsigned** unless you
+supply your own release keystore; that is intentional, so a local release build
+never silently borrows a debug key.
 
 ## Dependencies
 

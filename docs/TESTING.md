@@ -11,7 +11,7 @@ TESTED without a run to point at.
 | JVM unit tests | `./gradlew :app:testDebugUnitTest` | CI (`android-ci.yml`), locally |
 | Android Lint | `./gradlew :app:lintDebug` | CI |
 | Instrumentation / UI | `./gradlew :app:connectedDebugAndroidTest` | CI emulator matrix (`android-instrumentation.yml`) |
-| Release gates | `./gradlew :app:lintRelease :app:assembleRelease` | CI release workflow |
+| Release gates | `./gradlew :app:lintDebug :app:assembleDebugPersonal` | CI release workflow |
 
 ## Unit tests (JVM)
 

@@ -106,8 +106,11 @@ later, but the failure mode is dangerous and easy to misread.
 over an update".
 
 *Fixed:* `ASTRA_REQUIRE_SIGNING=1` is set by the release workflow; a
-`verifyReleaseSigning` task wired as a dependency of `assembleRelease` throws a
+`verifyDebugSigning` task wired as a dependency of `assembleDebugPersonal` throws a
 `GradleException` when signing was required but no keystore resolved.
+
+*(Renamed during the signing-strategy change: the published artifact is now
+`debugPersonal`, signed by a stable personal-use debug identity.)*
 
 ### 8. Signature gate did not assert `apksigner` success
 
@@ -187,3 +190,67 @@ Checked and found correct:
 
 New tests: battery-saver condition, all-conditions-evaluated, profile-condition
 payload, nested-ring geometry, no-duplicate-layout geometry, multi-page gutter.
+
+## Second review pass — signing strategy
+
+The production-signing requirement was withdrawn and replaced with a personal-use,
+debug-signed release model. That change invalidated several assumptions, so the
+signing path was reviewed again from scratch.
+
+### 10. `applicationIdSuffix = ".debug"` made every debug build a separate app
+
+The `debug` build type appended `.debug` to the application id, and the release
+workflow was building a release APK anyway — but anything that packaged `debug`
+produced `com.astratouch.app.debug`, which installs *alongside* the real app and can
+never update it.
+
+*Effect:* "it installed fine" could be true while the user ended up with two
+AstraTouch icons and no upgrade path.
+
+*Fixed:* the published variant is `debugPersonal`, which keeps
+`com.astratouch.app`. The `.debug` suffix stays on the development variant only.
+
+### 11. ECDSA certificates are not byte-stable, so determinism was not enough
+
+Deriving the same private key twice does yield the same public key, but signing the
+certificate is itself randomized — two runs produced different certificate bytes
+(`diff` showed differing signature bytes). Android compares the **certificate**, so
+a freshly minted certificate each run would have broken updates even with a
+deterministic key.
+
+*Fixed:* the generator takes `--cert-in` and reuses the committed public certificate
+(`signing/astratouch-debug-cert.pem`) instead of minting a new one. Determinism is
+now asserted on the certificate identity, not on file hashes — `.p12` files are also
+not byte-stable because of random salts, so comparing them would have been a false
+test.
+
+### 12. A `set -u` reference aborted verification before it ran
+
+The signer-verification step referenced a `$BUILD_TOOLS` variable that had been
+replaced by `$APKSIGNER`. Under `set -u` the step died silently at that line, and
+the annotation showed only "Could not determine the APK signing certificate" — the
+real cause took several runs to find.
+
+*Fixed:* the stale reference is gone, and the step now reports the actual signer it
+parsed before failing, so a parsing problem is distinguishable from a mismatch.
+
+### 13. Signature verification trusted a single tool
+
+`apksigner` alone was used to identify the signer. When its output could not be
+parsed, there was no second opinion and no way to tell a genuine mismatch from a
+parsing quirk.
+
+*Fixed:* v1 (JAR) signing is now enabled alongside v2, so `keytool -printcert
+-jarfile` can read the certificate independently. CI verifies with `keytool` and
+only falls back to `apksigner` parsing. Run
+[`44592475036`](https://github.com/peraccofshohan-lgtm/astratouch/actions/runs/44592475036)
+shows the resulting signer digest: `198476e1822fb79f6c85c426c5c450c66c87db2982b88f90139c1eae19b3920e`,
+matching the pinned fingerprint.
+
+### 14. A build-type-scoped BuildConfig field broke every other variant
+
+`ASTRA_DEBUG_BUILD` was declared only inside the `debugPersonal` build type.
+`BuildConfig` fields exist per variant, so once shared source referenced the field,
+every *other* variant failed to compile with `Unresolved reference`.
+
+*Fixed:* the field is declared in `defaultConfig` and overridden where it differs.

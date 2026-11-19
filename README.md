@@ -61,11 +61,11 @@ needs a 21 JDK.
 
 ```bash
 ./gradlew clean
-./gradlew :app:assembleDebug        # debug APK -> app/build/outputs/apk/debug/
-./gradlew :app:testDebugUnitTest    # 80 JVM unit tests
+./gradlew :app:assembleDebug        # development APK -> app/build/outputs/apk/debug/
+./gradlew :app:testDebugUnitTest    # 86 JVM unit tests
 ./gradlew :app:lintDebug            # Android Lint (abortOnError = true)
 ./gradlew :app:connectedDebugAndroidTest   # needs an emulator/device
-./gradlew :app:assembleRelease      # signed only when signing env vars/key.properties are supplied
+./gradlew :app:assembleDebugPersonal # the published, signed APK (see docs/BUILDING.md)
 ```
 
 Full instructions, including R8 and signing setup: [docs/BUILDING.md](docs/BUILDING.md).

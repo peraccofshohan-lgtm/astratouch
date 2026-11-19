@@ -247,34 +247,38 @@ tested.
 
 ## Phase 06 — Release
 
+Signing strategy: **personal-use debug identity**. No production keystore and no
+signing secrets are required. See [RELEASE_SIGNING.md](RELEASE_SIGNING.md).
+
 | Item | Status | Notes |
 | --- | --- | --- |
-| CI (test + lint + debug APK) | ✅ TESTED | Run `44474918008` success |
-| PR verification workflow | ✅ TESTED | `android-pr.yml` green on PR #1 (runs `44478520365`, `44479827309`) |
-| Self-hosted signing gate | ✅ TESTED | 4 secrets required, no debug-key fallback — verified failing closed in run `44483918522` |
-| Signature verification gate | ✅ BUILT | Fails explicitly on `apksigner` non-zero exit; rejects `CN=Android Debug`; requires v2+v3; publishes the signer cert SHA-256 |
-| Badging assertions | ✅ BUILT | package / versionName / versionCode / minSdk / targetSdk |
-| Checksums + metadata | ✅ BUILT | `SHA256SUMS.txt`, `release-metadata.json` (incl. `signingCertificateSha256`), post-publish re-verify |
-| Release notes | ✅ BUILT | `docs/releases/v1.0.0.md`, `docs/releases/v1.0.1.md` |
-| Signing bootstrap script | ✅ TESTED | `scripts/setup-signing.sh` — `--non-interactive` and `--print-values` verified end-to-end with a stubbed `keytool` |
-| **Produce a signed v1.0.1 APK** | ⛔ BLOCKED | The automation token has repo admin but **not** `secrets: write` (HTTP 403 on `/actions/secrets`) and not `workflow: dispatch`. The owner must run `scripts/setup-signing.sh` once, or add the four secrets in Settings |
-| **Publish the GitHub Release** | ⛔ BLOCKED | Same cause: run `44483918522` aborted at the secrets gate with `Release signing secrets are missing: ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD … Refusing to publish an unsigned APK` |
-| Git tag `v1.0.0` | ✅ BUILT | Tagged and pushed; it triggered release run `44483918522`, which validated the tag format and version consistency and then stopped at the secrets gate exactly as designed |
+| CI (test + lint + debug APK + `debugPersonal` APK) | ✅ TESTED | Run `44592475036` green, including the published variant |
+| PR verification workflow | ✅ TESTED | `android-pr.yml` green on PR #1 |
+| Stable signing identity is deterministic | ✅ TESTED | Two independent derivations produce the same certificate; the built APK's signer (`198476e1…3920e`) equals the pinned fingerprint, confirmed by `keytool` in run `44592475036` |
+| No secrets required | ✅ TESTED | The keystore is derived at build time into a temporary directory; the workflow reads no signing secret |
+| Private key never committed | ✅ TESTED | `.gitignore` rejects `*.jks/*.keystore/*.p12/*.pfx/*.b64/*.pem` (except the committed public certificate); the committed file contains no `PRIVATE KEY` |
+| Signature verification gate | ✅ TESTED | Must show valid v1/v2 signature; signer must equal `.github/signing-identity.txt`; verified independently by `keytool` as well as `apksigner` |
+| Badging assertions | ✅ BUILT | package / versionName / versionCode / minSdk / targetSdk asserted in the publish path |
+| Checksums + metadata | ✅ BUILT | `SHA256SUMS.txt`, `release-metadata.json` (incl. `signingCertificateSha256`), post-publish re-download and re-hash |
+| Release notes | ✅ BUILT | `docs/releases/v1.0.0.md`, `v1.0.1.md`, `v1.0.2.md` |
+| **Produce a signed v1.0.2 APK** | 🟡 IN PROGRESS | The signed `debugPersonal` APK builds in CI and its signer is verified. The release run is what publishes it; it has not been observed green on tag `v1.0.2` yet |
+| **Publish the GitHub Release** | 🟡 IN PROGRESS | Zero releases are published so far. Tags `v1.0.0` and `v1.0.1` were burned against the old secrets-based pipeline and must not be reused |
+| Git tag `v1.0.2` | ⏳ NOT YET | To be created only after the source above is committed and green |
 
-### What "BLOCKED" means concretely
+### Why v1.0.0 and v1.0.1 were never published
 
-The release pipeline is complete and reviewed. It fails closed on purpose: if it
-cannot sign with the real key it publishes nothing rather than shipping a
-debug-signed APK. Unblocking requires one manual step by a repository owner with
-admin scope:
+Both tags were pushed against a pipeline that required four production signing
+secrets. Run
+[`44532549544`](https://github.com/peraccofshohan-lgtm/astratouch/actions/runs/44532549544)
+passed gates 1, 2, 4 and 5 — tag format, version consistency, 86 unit tests,
+`lintRelease` — then stopped at the secrets gate, correctly refusing to publish an
+unsigned APK. The token available to this work is refused by GitHub's secrets API
+(HTTP 403, `x-accepted-github-permissions: secrets=read`), so those secrets could
+never be set here.
 
-```bash
-./scripts/setup-signing.sh          # generates a keystore + uploads 4 secrets
-git tag -a v1.0.0 -m "AstraTouch 1.0.0" && git push origin v1.0.0
-```
-
-After that, gates 1–11 run automatically and the APK, checksums and metadata are
-attached to the release.
+The requirement itself was therefore reconsidered rather than routed around: a
+personal-use app needs no production trust anchor. v1.0.2 is the first release built
+on the replacement strategy, and it needs no secrets at all.
 
 ---
 
@@ -285,9 +289,9 @@ attached to the release.
 | 01 Research & plan | ✅ Complete |
 | 02 Scaffold | ✅ Complete, CI-verified |
 | 03 Implementation | ✅ Complete (2 items ⚠️ LIMITED by documented design, 3 🟡 MANUAL) |
-| 04 QA | ✅ Unit tests, lint, PR workflow and the emulator matrix (API 29/33/36) all green. `lintRelease` runs only inside the release pipeline and is ⛔ pending signing secrets |
+| 04 QA | ✅ Unit tests, lint, PR workflow and the emulator matrix (API 29/33/36) all green, plus the signed `debugPersonal` build verified in CI (run `44592475036`) |
 | 05 Documentation | ✅ Complete — 22 documents + release notes |
-| 06 Release | ⚠️ Pipeline complete; gates 1, 2, 4 and 5 verified passing on tag `v1.0.0`, and the secrets gate observed failing closed. **Producing a signed APK is ⛔ blocked**: the automation token is refused by GitHub's secrets API (403), so the four signing secrets must be added by the repository owner. Exact steps: [SIGNING_HANDOVER.md](SIGNING_HANDOVER.md) |
+| 06 Release | 🟡 **Not complete.** The signing blocker is gone — the personal-use debug identity is derived deterministically, needs no secrets, and CI verifies the built APK's signer against the pinned fingerprint (run `44592475036`). What remains is publishing: no release exists yet and tag `v1.0.2` has not been pushed. |
 
 Nothing in this matrix is marked TESTED without a CI run to point at, and nothing
 is marked BUILT unless it compiles in that run.

@@ -4,6 +4,56 @@ All notable changes to AstraTouch are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/) and
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.0.2] — 2026-11-19
+
+The first release that is actually installable. v1.0.0 and v1.0.1 were never
+published: both stopped at a signing gate that required a production keystore and
+four GitHub secrets which this project does not have and — for a personal-use app —
+does not need.
+
+### Changed
+
+- **Signing strategy replaced.** AstraTouch now publishes a *debug-signed* APK
+  built on a stable personal-use identity instead of a production release key.
+  No production keystore and no signing secrets are required.
+- **The signing identity is now stable across builds.**
+  `scripts/derive-debug-keystore.py` derives an EC P-256 key from a seed and pairs
+  it with the committed public certificate
+  `signing/astratouch-debug-cert.pem`, so the certificate bytes are identical on
+  every run. Android compares certificate bytes when deciding whether an update may
+  replace an installed app, so this is what makes v1.0.3 installable over v1.0.2.
+- **New `debugPersonal` build type** — the published artifact. Inherits R8 and
+  resource shrinking from `release`, is non-debuggable, and keeps the real
+  `com.astratouch.app` application id. The plain `debug` variant keeps its `.debug`
+  suffix and remains development-only.
+- **Enabled both v1 and v2 APK signature schemes** so the signing certificate can be
+  read by either `apksigner` or `keytool`, and verified by two independent tools.
+- **The About screen now reports the build kind honestly** — "debug-signed personal
+  build" rather than claiming to be a release build.
+
+### Added
+
+- `signing/astratouch-debug-cert.pem` — the committed *public* signing certificate
+  (688 bytes, no private key).
+- `.github/signing-identity.txt` — the pinned certificate fingerprint. The release
+  workflow fails if a build's signer ever differs, turning a silent key rotation
+  (which would strand every existing install) into a red build.
+- Release gate that re-downloads the *published* asset and re-checks its SHA-256,
+  so the checksum describes the bytes a user actually receives.
+
+### Verification
+
+- CI run [44592475036](https://github.com/peraccofshohan-lgtm/astratouch/actions/runs/44592475036)
+  built `debugPersonal` and confirmed its signer certificate equals the pinned
+  identity, read independently by `keytool`.
+
+### Known limitations
+
+- Debug-signed, not store-signed. Valid and update-compatible, but not a
+  production trust anchor.
+- The keystore password is public (`astratouchdebug`); it protects nothing, by
+  design, because the identity is derived rather than stored.
+
 ## [1.0.1] — 2026-11-19
 
 A review-driven correctness release. Nine defects found by reading the code after

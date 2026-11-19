@@ -123,7 +123,7 @@ jobs:
         id: apk
         run: |
           set -euo pipefail
-          APK=$(find app/build/outputs/apk/release -maxdepth 1 -name '*-release.apk' | head -n 1)
+          APK=$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' | grep -v -- '-unsigned' | head -n 1)
           if [ -z "$APK" ]; then
             echo "::error::No release APK was produced"
             exit 1

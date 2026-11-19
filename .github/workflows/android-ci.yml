@@ -101,8 +101,16 @@ jobs:
           set -uo pipefail
           SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
           echo "SDK=$SDK"
-          ls -d "$SDK"/build-tools/* 2>/dev/null || echo "(no build-tools dir)"
-          BUILD_TOOLS=$(ls -d "$SDK"/build-tools/* 2>/dev/null | sort -V | tail -n 1 || true)
+          echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-unset} ANDROID_HOME=${ANDROID_HOME:-unset}"
+
+          # The runner's SDK layout varies; find apksigner wherever it lives.
+          APKSIGNER=$(find /usr/local/lib/android "$SDK" -type f -name apksigner 2>/dev/null | sort -V | tail -n 1 || true)
+          if [ -z "$APKSIGNER" ]; then
+            echo "apksigner not preinstalled; installing build-tools via sdkmanager"
+            yes | "${SDK}/cmdline-tools/latest/bin/sdkmanager" --install "build-tools;36.0.0" > /dev/null 2>&1 || true
+            APKSIGNER=$(find "$SDK" -type f -name apksigner 2>/dev/null | sort -V | tail -n 1 || true)
+          fi
+          echo "APKSIGNER=<$APKSIGNER>"
 
           APK=$(find app/build/outputs/apk/debugPersonal -name '*.apk' ! -name '*unsigned*' | head -1)
           echo "APK=<$APK>"
@@ -116,12 +124,12 @@ jobs:
           echo "expected=<$EXPECTED>"
 
           ACTUAL=""
-          if [ -n "$BUILD_TOOLS" ] && [ -x "$BUILD_TOOLS/apksigner" ]; then
-            echo "== apksigner $("$BUILD_TOOLS/apksigner" --version 2>&1) =="
+          if [ -n "$APKSIGNER" ] && [ -x "$APKSIGNER" ]; then
+            echo "== apksigner $("$APKSIGNER" --version 2>&1) =="
             # apksigner exits non-zero on v1-verification warnings even when v2/v3
             # are fine, so capture the output and inspect it rather than trusting
             # the exit code alone.
-            "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK" > signature.txt 2>&1 || true
+            "$APKSIGNER" verify --verbose --print-certs "$APK" > signature.txt 2>&1 || true
             sed -n '1,80p' signature.txt
             ACTUAL=$(sed -n 's/.*Signer #1 certificate SHA-256 digest: *//p' signature.txt | head -1 | tr -d ' \r')
           else
@@ -137,7 +145,7 @@ jobs:
             {
               echo "### Diagnostic: signer verification failed"
               echo ""
-              echo "SDK=\`$SDK\`  BUILD_TOOLS=\`$BUILD_TOOLS\`  APK=\`$APK\`"
+              echo "SDK=\`$SDK\`  APKSIGNER=\`$APKSIGNER\`  APK=\`$APK\`"
               echo ""
               echo "Output dir:"
               echo '```'

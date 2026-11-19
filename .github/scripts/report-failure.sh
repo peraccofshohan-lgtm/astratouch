@@ -30,6 +30,11 @@ for f in "${files[@]}"; do
     | grep -v "^w: " \
     | head -15 | while IFS= read -r line; do emit "$name" "$line"; done
 
+  # 2b. Android Lint errors look like:
+  #     /path/File.kt:12: Error: message [IssueId]
+  grep -E "Error: .*\[[A-Za-z]+\]$|^[^ ]+\.(kt|xml|java):[0-9]+: (Error|Warning):" "$f" \
+    | head -25 | while IFS= read -r line; do emit "$name" "$line"; done
+
   # 3. Gradle task-level failures, with the lines that follow the reason.
   grep -A 12 -E "What went wrong" "$f" | head -20 | while IFS= read -r line; do emit "$name" "$line"; done
   grep -E "Execution failed for task|> Task .* FAILED|Caused by:" "$f" \

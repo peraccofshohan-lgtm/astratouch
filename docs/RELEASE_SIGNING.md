@@ -160,3 +160,38 @@ The Gradle build resolves signing material in this order:
 
 If neither is present, `assembleRelease` produces an **unsigned** APK. That is
 intentional: the release pipeline's gate refuses to publish it.
+
+## Verified automation limits (observed, not assumed)
+
+The token used to build this repository has `admin: true` on the repository but is
+still refused by two endpoints. Both were tested, not guessed:
+
+| Call | Result |
+| --- | --- |
+| `GET /repos/{owner}/{repo}/actions/secrets` | `403 Resource not accessible by integration` |
+| `GET /repos/{owner}/{repo}/actions/secrets/public-key` | `403 Resource not accessible by integration` |
+| `POST /repos/{owner}/{repo}/actions/workflows/{id}/dispatches` | `403 Resource not accessible by integration` |
+
+Consequences:
+
+- Secrets must be added by a person with admin scope, either through
+  `scripts/setup-signing.sh` or Settings → Secrets and variables → Actions.
+- A manual dispatch (`gh workflow run`) has to be triggered by a human; a pushed
+  tag works from automation because tag pushes are ordinary git writes.
+
+## What the pipeline does when secrets are absent (verified)
+
+Pushing tag `v1.0.0` produced release run **`44483918522`**:
+
+| Step | Outcome |
+| --- | --- |
+| Resolve and validate version tag | passed |
+| Validate version consistency with `gradle.properties` | passed |
+| Run unit tests | passed |
+| Lint (release blocking) | passed |
+| Fail clearly when signing secrets are missing | **failed**, with an explicit message naming all four secrets |
+| Decode keystore, signed build, signature check, badging, checksums, publish, post-publish re-verify | all skipped |
+| Upload workflow artifacts | no APK to upload — logged as a warning, not a fake success |
+
+This is the intended behaviour: no debug-signed APK is ever published, and the run
+is red so the gap cannot go unnoticed.

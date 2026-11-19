@@ -23,6 +23,8 @@ Verified CI runs on branch `arena/51c0745e-astratouch`:
 | `44478519934` | Android Instrumentation | success, but **hollow** — no tests actually executed; discovered later by a new assertion step |
 | `44479827314` | Android Instrumentation | failure — the new guard caught a duplicate-DataStore crash and two test-authoring bugs |
 | `44481063498` | Android Instrumentation | **success with tests actually executed** — API 29 (432 s), API 33 (454 s), API 36 (480 s); results asserted non-empty by the new guard |
+| `44482746370` / `44482740630` / `44482746373` | Instrumentation, CI, PR | all success on the final source commit |
+| `44483918522` | Android Release (tag `v1.0.0`) | expected failure at the secrets gate: gates 1, 2, 4 and 5 passed, every publish step skipped |
 | `44478520365` | Android PR | success — PR verification on PR #1 |
 
 > **Verification honesty statement.** No local Android build is possible in the
@@ -179,7 +181,7 @@ Verified CI runs on branch `arena/51c0745e-astratouch`:
 | Calculator UI test | ✅ TESTED | `CalculatorInstrumentedTest` — four cases (2+3=5, clear, operator precedence, divide-by-zero) asserting on tagged nodes; green on API 29/33/36 in run `44481063498` |
 | Emulator matrix API 29/33/36 | ✅ TESTED | Run `44481063498`: API 29, 33 and 36 all passed with results verified non-empty. Getting here found four real problems: run `44478519934` was a **hollow pass** (zero tests executed); run `44479827314` then exposed a duplicate-DataStore crash, ambiguous calculator text matching, and a Hilt `hiltViewModel()` failure inside `HiltTestActivity`. All are fixed, and the workflow now fails if no test XML is produced |
 | Lint (`lintDebug`) | ✅ TESTED | Passed in run `44474918008` |
-| Lint (`lintRelease`) | ⛔ BLOCKED | Only runs inside the release workflow; needs signing secrets |
+| Lint (`lintRelease`) | ✅ TESTED | Passed inside the release pipeline, run `44483918522`, step 9 — before the secrets gate, so it is verified without any signing material |
 | Physical device testing | ➖ N/A | No device available; documented as a gap in KNOWN_LIMITATIONS |
 | TalkBack audit | ➖ N/A | Requires a human screen-reader user; documented as a gap |
 | Performance profiling | ➖ N/A | See KNOWN_LIMITATIONS |
@@ -219,15 +221,15 @@ Verified CI runs on branch `arena/51c0745e-astratouch`:
 | --- | --- | --- |
 | CI (test + lint + debug APK) | ✅ TESTED | Run `44474918008` success |
 | PR verification workflow | ✅ TESTED | `android-pr.yml` green on PR #1 (runs `44478520365`, `44479827309`) |
-| Self-hosted signing gate | ✅ BUILT | 4 secrets required; no debug-key fallback |
+| Self-hosted signing gate | ✅ TESTED | 4 secrets required, no debug-key fallback — verified failing closed in run `44483918522` |
 | Signature verification gate | ✅ BUILT | Rejects `CN=Android Debug`, requires v2+v3 |
 | Badging assertions | ✅ BUILT | package / versionName / versionCode / minSdk / targetSdk |
 | Checksums + metadata | ✅ BUILT | `SHA256SUMS.txt`, `release-metadata.json`, post-publish re-verify |
 | Release notes template | ✅ BUILT | `docs/releases/v1.0.0.md` |
 | Signing bootstrap script | ✅ BUILT | `scripts/setup-signing.sh` |
-| **Produce a signed v1.0.0 APK** | ⛔ BLOCKED | The automation token has repo admin but **not** `secrets: write` (HTTP 403 on `/actions/secrets`). The owner must run `scripts/setup-signing.sh` once, or add the four secrets in Settings |
-| **Publish the GitHub Release** | ⛔ BLOCKED | Same cause: the pipeline aborts at the secrets gate by design |
-| Git tag `v1.0.0` | ⛔ BLOCKED | Tagging now would trigger a guaranteed-red release run; it is deferred until the secrets exist |
+| **Produce a signed v1.0.0 APK** | ⛔ BLOCKED | The automation token has repo admin but **not** `secrets: write` (HTTP 403 on `/actions/secrets`) and not `workflow: dispatch`. The owner must run `scripts/setup-signing.sh` once, or add the four secrets in Settings |
+| **Publish the GitHub Release** | ⛔ BLOCKED | Same cause: run `44483918522` aborted at the secrets gate with `Release signing secrets are missing: ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD … Refusing to publish an unsigned APK` |
+| Git tag `v1.0.0` | ✅ BUILT | Tagged and pushed; it triggered release run `44483918522`, which validated the tag format and version consistency and then stopped at the secrets gate exactly as designed |
 
 ### What "BLOCKED" means concretely
 
@@ -255,7 +257,7 @@ attached to the release.
 | 03 Implementation | ✅ Complete (2 items ⚠️ LIMITED by documented design, 3 🟡 MANUAL) |
 | 04 QA | ✅ Unit tests, lint, PR workflow and the emulator matrix (API 29/33/36) all green. `lintRelease` runs only inside the release pipeline and is ⛔ pending signing secrets |
 | 05 Documentation | ✅ Complete — 22 documents + release notes |
-| 06 Release | ⚠️ Pipeline complete, with a `dry_run` mode that verifies gates 1–5; actual signing ⛔ blocked on a secret the automation cannot write |
+| 06 Release | ⚠️ Pipeline complete and partially verified: gates 1, 2, 4 and 5 passed on tag `v1.0.0`, and the secrets gate was observed failing closed. Signed publication is ⛔ blocked on a secret this automation cannot write |
 
 Nothing in this matrix is marked TESTED without a CI run to point at, and nothing
 is marked BUILT unless it compiles in that run.

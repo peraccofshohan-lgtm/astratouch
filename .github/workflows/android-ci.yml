@@ -144,7 +144,7 @@ jobs:
           if [ -z "$ACTUAL" ]; then
             # The job log archive is not always retrievable in this environment, so
             # push the diagnostic detail into annotations, which always are.
-            echo "::warning::APKSIGNER=<$APKSIGNER> APK=<$APK> TOOLS=<$BUILD_TOOLS>"
+            echo "::warning::APKSIGNER=<$APKSIGNER> APK=<$APK> "
             echo "::warning::outputs: $(ls app/build/outputs/apk/debugPersonal/ 2>&1 | tr '\n' ' ')"
             n=0
             while IFS= read -r line; do

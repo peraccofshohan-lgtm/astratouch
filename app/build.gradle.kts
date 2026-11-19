@@ -28,6 +28,15 @@ val astraTargetSdk = prop("astratouch.targetSdk", "36").toInt()
  * If neither is present the release build is unsigned and the release
  * pipeline fails its gate instead of publishing a debug-signed artifact (H28).
  */
+/**
+ * When the release pipeline asks for a signed build it sets ASTRA_REQUIRE_SIGNING=1.
+ * In that mode a missing or unreadable keystore is a hard build failure. Without
+ * this, `assembleRelease` quietly falls through to an *unsigned* APK, which the
+ * release workflow only catches much later at the apksigner gate — or, if that
+ * gate were ever loosened, would ship an APK nobody can install over an update.
+ */
+val requireSigning: Boolean = System.getenv("ASTRA_REQUIRE_SIGNING") == "1"
+
 val releaseSigning: Properties? = run {
     val envStore = System.getenv("ASTRA_KEYSTORE_FILE")
     if (envStore != null) {
@@ -226,4 +235,31 @@ dependencies {
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.room.testing)
+}
+
+/**
+ * Fails the build when signing was requested but no signing config was resolved.
+ * Wired as a dependency of `assembleRelease` so it cannot be skipped by invoking
+ * Gradle from a different entry point.
+ */
+val verifyReleaseSigning by tasks.registering {
+    group = "verification"
+    description = "Fails when ASTRA_REQUIRE_SIGNING=1 but no release signing config resolved."
+    doLast {
+        if (!requireSigning) return@doLast
+        val store = android.signingConfigs.findByName("release")?.storeFile
+        if (store == null) {
+            throw GradleException(
+                "Release signing was required (ASTRA_REQUIRE_SIGNING=1) but no keystore was resolved. " +
+                    "Check ASTRA_KEYSTORE_FILE, ASTRA_KEYSTORE_PASSWORD, ASTRA_KEY_ALIAS and ASTRA_KEY_PASSWORD.",
+            )
+        }
+        if (!store.exists()) {
+            throw GradleException("Release keystore path resolved but the file does not exist: $store")
+        }
+    }
+}
+
+tasks.matching { it.name == "assembleRelease" }.configureEach {
+    dependsOn(verifyReleaseSigning)
 }

@@ -139,9 +139,12 @@ jobs:
       - name: Build signed release APK
         if: ${{ !inputs.dry_run }}
         env:
+          ASTRA_KEYSTORE_FILE: ${{ env.ASTRA_KEYSTORE_FILE }}
           ASTRA_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ASTRA_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ASTRA_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          # Makes Gradle fail loudly rather than emitting an unsigned APK.
+          ASTRA_REQUIRE_SIGNING: "1"
         run: ./gradlew :app:assembleRelease --no-daemon --console=plain
 
       - name: Locate the APK
@@ -179,12 +182,21 @@ jobs:
           APK="${{ steps.apk.outputs.path }}"
 
           echo "== apksigner verify =="
-          "$APKSIGNER" verify --verbose --print-certs "$APK" | tee signature.txt
+          if ! "$APKSIGNER" verify --verbose --print-certs "$APK" | tee signature.txt; then
+            echo "::error::apksigner verify FAILED — the APK is unsigned or its signature is invalid."
+            sed -n '1,40p' signature.txt
+            exit 1
+          fi
           grep -q "Verified using v2 scheme (APK Signature Scheme v2): true" signature.txt \
             || grep -q "Verified using v3 scheme (APK Signature Scheme v3): true" signature.txt \
             || { echo "::error::APK is not signed with a v2/v3 scheme"; exit 1; }
           if grep -qE "CN=Android Debug" signature.txt; then
             echo "::error::APK is signed with the Android debug key — refusing to publish"
+            exit 1
+          fi
+          # An unsigned APK must never reach this point; assert explicitly.
+          if grep -qiE "^DOES NOT VERIFY|no signature|not signed" signature.txt; then
+            echo "::error::APK reports no usable signature — refusing to publish"
             exit 1
           fi
 
@@ -202,7 +214,18 @@ jobs:
           [ "$MINSDK" = "29" ] || { echo "::error::minSdk mismatch: $MINSDK"; exit 1; }
           [ "$TARGETSDK" = "36" ] || { echo "::error::targetSdk mismatch: $TARGETSDK"; exit 1; }
 
-          CERT_SHA256=$(grep -m1 -oP "certificate SHA-256 digest: \K[0-9a-f]+" signature.txt)
+          # The signer's certificate digest identifies the key that produced this
+          # APK. Publishing it lets anyone confirm that two releases came from the
+          # same key, and detect a silent key rotation.
+          CERT_SHA256=$(grep -m1 -oP "Signer #1 certificate SHA-256 digest: \K[0-9a-f]+" signature.txt || true)
+          if [ -z "$CERT_SHA256" ]; then
+            CERT_SHA256=$(grep -m1 -oP "certificate SHA-256 digest: \K[0-9a-f]+" signature.txt || true)
+          fi
+          if [ -z "$CERT_SHA256" ]; then
+            echo "::error::Could not read the signing certificate's SHA-256 digest — cannot attest the signer."
+            sed -n '1,40p' signature.txt
+            exit 1
+          fi
           {
             echo "package=$PKG"
             echo "version_name=$VNAME"

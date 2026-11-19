@@ -20,7 +20,7 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
-import io.mockk.capture
+
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -150,7 +150,7 @@ class MacroEngineTest {
         val saveMacro = SaveMacroUseCase(repo)
         val capturedMacro = slot<Macro>()
         val capturedSteps = slot<List<MacroStep>>()
-        coEvery { repo.saveMacro(capture(capturedMacro), capture(capturedSteps)) } returns Unit
+        coEvery { repo.saveMacro(capturedMacro.capture(), capturedSteps.capture()) } returns Unit
 
         val result = saveMacro(
             Macro(id = "", name = "Fresh"),

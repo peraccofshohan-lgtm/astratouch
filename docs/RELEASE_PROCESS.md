@@ -109,10 +109,29 @@ git checkout main && git merge --no-ff hotfix/1.0.1
 
 ## Dry runs
 
-To exercise the pipeline without publishing, run the workflow manually with
-`release_tag` set to the current tag: the gates re-run, and the publish step skips
-because the release already exists. Without signing secrets, the run will stop at
-gate 3 by design — that is the gate working, not a bug.
+The workflow takes a `dry_run` boolean input. With `dry_run: true` it verifies
+everything that does not need signing material and then stops:
+
+| Gate | Dry run |
+| --- | --- |
+| 1. Tag is semver | ✅ runs |
+| 2. versionName / versionCode consistency | ✅ runs |
+| 3. Signing secrets present | ⏭ skipped |
+| 4. Unit tests | ✅ runs |
+| 5. `lintRelease` | ✅ runs |
+| 6. Signed build | ⏭ skipped |
+| 7–11. Signature, badging, checksums, publish, re-verify | ⏭ skipped |
+
+A summary table is written to the job's step summary. This is the supported way to
+validate the pipeline before the signing secrets exist, and it proves the release
+build still compiles and lints even when nothing is published.
+
+Running without `dry_run` and without secrets stops at gate 3 with an explicit
+error — that is the gate working, not a bug.
+
+```bash
+gh workflow run android-release.yml -f release_tag=v1.0.0 -f dry_run=true
+```
 
 ## Registry distribution
 

@@ -143,7 +143,13 @@ android {
          */
         create("debugPersonal") {
             initWith(getByName("release"))
-            signingConfig = signingConfigs.getByName("debugPersonal")
+            // When no stable keystore was resolved (plain local build) fall back to
+            // Android's automatic debug key so the variant still packages. The
+            // release pipeline always supplies the stable identity and fails the
+            // build if it is missing.
+            signingConfig =
+                if (debugSigning != null) signingConfigs.getByName("debugPersonal")
+                else signingConfigs.getByName("debug")
             // Keep the real applicationId so updates replace earlier installs, but
             // mark the artifact as what it is: debug-signed, not a store release.
             isDebuggable = false

@@ -13,6 +13,9 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  ASTRA_DEBUG_KEY_ALIAS: astratouchdebug
+  ASTRA_DEBUG_KEYSTORE_PASSWORD: astratouchdebug
+  ASTRA_DEBUG_KEY_PASSWORD: astratouchdebug
   GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.console=plain"
 
 jobs:
@@ -62,6 +65,20 @@ jobs:
       # The published artifact is the `debugPersonal` variant. Building it in CI
       # catches build-type-specific breakage (R8 shrinking, resource shrinking,
       # missing debug-only sources) long before a release tag is pushed.
+      - name: Generate stable debug signing keystore
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet --disable-pip-version-check cryptography
+          mkdir -p "$RUNNER_TEMP/signing"
+          "$RUNNER_TEMP/venv/bin/python" scripts/derive-debug-keystore.py \
+            --out "$RUNNER_TEMP/signing/debug.p12" \
+            --cert-in signing/astratouch-debug-cert.pem | tee signing-info.txt
+          {
+            echo "ASTRA_DEBUG_KEYSTORE_FILE=$RUNNER_TEMP/signing/debug.p12"
+            echo "ASTRA_REQUIRE_SIGNING=1"
+          } >> "$GITHUB_ENV"
+
       - name: Build personal (published) APK
         run: |
           set -o pipefail
@@ -77,6 +94,22 @@ jobs:
               echo "::error::${line}"
             done
           exit 1
+
+      - name: Verify the personal APK is signed by the stable identity
+        if: success()
+        run: |
+          set -euo pipefail
+          SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          BUILD_TOOLS=$(ls -d "$SDK"/build-tools/* 2>/dev/null | sort -V | tail -n 1)
+          APK=$(find app/build/outputs/apk/debugPersonal -name '*.apk' ! -name '*unsigned*' | head -1)
+          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK" | tee signature.txt
+          EXPECTED=$(grep -m1 'SHA-256 fingerprint' .github/signing-identity.txt | awk -F': *' '{print $2}')
+          ACTUAL=$(grep -m1 -oP 'Signer #1 certificate SHA-256 digest: \K[0-9a-f]+' signature.txt)
+          [ "$ACTUAL" = "$EXPECTED" ] || {
+            echo "::error::APK signer $ACTUAL != stable identity $EXPECTED"
+            exit 1
+          }
+          echo "::notice::Personal APK signed by the stable identity ($ACTUAL)"
 
       - name: Report failures as annotations
         if: failure()

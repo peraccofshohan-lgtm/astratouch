@@ -65,7 +65,18 @@ jobs:
       - name: Build personal (published) APK
         run: |
           set -o pipefail
-          ./gradlew :app:assembleDebugPersonal --no-daemon --console=plain 2>&1 | tee build-logs/assemble-personal.log
+          if ./gradlew :app:assembleDebugPersonal --no-daemon --console=plain 2>&1 \
+               | tee build-logs/assemble-personal.log; then
+            exit 0
+          fi
+          # The job log archive is not always retrievable, so lift the interesting
+          # lines into annotations where they are always visible.
+          echo "::error::assembleDebugPersonal failed. Key lines:"
+          grep -E "^(e: |\* What went wrong|> Task .*FAILED|Caused by:|Execution failed|A failure occurred)|error:" \
+            build-logs/assemble-personal.log | head -40 | while IFS= read -r line; do
+              echo "::error::${line}"
+            done
+          exit 1
 
       - name: Report failures as annotations
         if: failure()

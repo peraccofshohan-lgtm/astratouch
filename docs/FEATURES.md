@@ -81,10 +81,10 @@ config, radial config, gesture bindings and theme. Profiles can auto-activate
 for a package (opt-in per profile).
 
 ## 9. Customization studio
-Five presets (Midnight Obsidian, Cyber Cyan, Violet Nebula, Arctic Glass, Custom)
-plus per-element colour editing, corner radius, text scale, animation speed,
-haptic intensity, monospace typography and dark/light direction. Changes apply
-live to the overlay.
+Five presets (Midnight Obsidian, Cyber Cyan, Violet Nebula, Arctic Glass,
+Amber Ember) plus an editable Custom slot, with per-element colour editing, corner
+radius, text scale, animation speed, haptic intensity, monospace typography and
+dark/light direction. Changes apply live to the overlay.
 
 ## 10. Screenshot studio & productivity
 - Screenshot capture through the accessibility API, saved to app-private storage.

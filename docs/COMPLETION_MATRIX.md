@@ -117,7 +117,7 @@ and `astratouch-test-reports` uploaded.
 
 | Item | Status | Notes |
 | --- | --- | --- |
-| 5 presets + custom | ✅ BUILT | Midnight Obsidian, Cyber Cyan, Violet Nebula, Arctic Glass, Custom |
+| 5 presets + custom slot | ✅ TESTED | Midnight Obsidian, Cyber Cyan, Violet Nebula, Arctic Glass, Amber Ember, plus the editable Custom slot — `BackupSerializationTest` pins the count, uniqueness, light/dark coverage and id round trip |
 | Per-element colours, radius, typography, motion | ✅ BUILT | `ThemeConfig` |
 
 ### Capture studio

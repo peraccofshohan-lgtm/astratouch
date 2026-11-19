@@ -53,8 +53,9 @@ command and accessibility control app.
 - Six profiles with independent bubble, radial menu, gestures and theme.
 
 **Customization studio**
-- Five themes (Midnight Obsidian, Cyber Cyan, Violet Nebula, Arctic Glass,
-  Custom) plus per-element colours, radius, typography, motion and haptics.
+- Five theme presets (Midnight Obsidian, Cyber Cyan, Violet Nebula, Arctic Glass,
+  Amber Ember) plus an editable Custom slot, with per-element colours, radius,
+  typography, motion and haptics.
 
 **Productivity**
 - Screenshot capture via the accessibility API, MediaProjection recording, crop,

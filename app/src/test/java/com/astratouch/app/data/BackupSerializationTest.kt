@@ -85,6 +85,27 @@ class BackupSerializationTest {
     }
 
     @Test
+    fun `five distinct presets plus the custom slot are available`() {
+        val presets = ThemePreset.entries.filter { it != ThemePreset.CUSTOM }
+        assertEquals("Part 12 requires five presets", 5, presets.size)
+        assertEquals("presets must have unique ids", presets.size, presets.map { it.id }.toSet().size)
+        assertEquals("presets must have unique labels", presets.size, presets.map { it.label }.toSet().size)
+        assertTrue("at least one light preset is required", presets.any { !it.isDark })
+        assertTrue("at least one dark preset is required", presets.any { it.isDark })
+        // Every preset must be adoptable as a full theme config.
+        presets.forEach { preset ->
+            val config = ThemeConfig.fromPreset(preset)
+            assertEquals(preset.id, config.presetId)
+            assertEquals(preset.label, config.name)
+            assertEquals(preset.isDark, config.isDark)
+        }
+        // Both directions of id mapping must round trip.
+        presets.forEach { assertEquals(it, ThemePreset.fromId(it.id)) }
+        assertEquals(ThemePreset.MIDNIGHT_OBSIDIAN, ThemePreset.fromId("does-not-exist"))
+        assertEquals(ThemePreset.MIDNIGHT_OBSIDIAN, ThemePreset.fromId(null))
+    }
+
+    @Test
     fun `theme presets keep their identity`() {
         ThemePreset.entries.forEach { preset ->
             val config = ThemeConfig.fromPreset(preset)

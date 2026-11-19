@@ -2,7 +2,7 @@ package com.astratouch.app.domain.model
 
 import kotlinx.serialization.Serializable
 
-/** The five themes required by Part 12. */
+/** The five presets required by Part 12, plus the editable Custom slot. */
 enum class ThemePreset(
     val id: String,
     val label: String,
@@ -57,6 +57,17 @@ enum class ThemePreset(
         tertiary = 0xFF7E57C2,
         onBackground = 0xFF0A1622,
         isDark = false,
+    ),
+    AMBER_EMBER(
+        id = "amber_ember",
+        label = "Amber Ember",
+        background = 0xFF120A04,
+        surface = 0xFF1F1208,
+        primary = 0xFFFFB84D,
+        secondary = 0xFFFF7A45,
+        tertiary = 0xFFFFD166,
+        onBackground = 0xFFFDF1E3,
+        isDark = true,
     ),
     CUSTOM(
         id = "custom",

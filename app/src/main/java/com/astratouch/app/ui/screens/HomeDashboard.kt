@@ -111,7 +111,15 @@ class DashboardViewModel @Inject constructor(
             _message.value = "Grant \"Display over other apps\" first — open the Permission Center to do that."
             return
         }
-        FloatingOverlayService.start(context)
+        // The dashboard is a foreground Activity, so this start is legal; guard it
+        // anyway so an OEM-specific restriction surfaces as a message instead of a
+        // crash on the user's home screen.
+        val started = runCatching { FloatingOverlayService.start(context) }
+        if (started.isFailure) {
+            _message.value = "Android blocked the bubble from starting. Open AstraTouch from " +
+                "the app drawer and try again, and check the battery-optimisation setting."
+            return
+        }
         viewModelScope.launch {
             preferencesStore.setOverlayEnabled(true)
             kotlinx.coroutines.delay(400)

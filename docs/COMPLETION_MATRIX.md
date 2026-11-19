@@ -22,6 +22,7 @@ Verified CI runs on branch `arena/51c0745e-astratouch`:
 | `44476967768` | Android CI | success — after the migration rework |
 | `44478519934` | Android Instrumentation | success, but **hollow** — no tests actually executed; discovered later by a new assertion step |
 | `44479827314` | Android Instrumentation | failure — the new guard caught a duplicate-DataStore crash and two test-authoring bugs |
+| `44481063498` | Android Instrumentation | **success with tests actually executed** — API 29 (432 s), API 33 (454 s), API 36 (480 s); results asserted non-empty by the new guard |
 | `44478520365` | Android PR | success — PR verification on PR #1 |
 
 > **Verification honesty statement.** No local Android build is possible in the
@@ -173,10 +174,10 @@ Verified CI runs on branch `arena/51c0745e-astratouch`:
 | --- | --- | --- |
 | JVM unit tests | ✅ TESTED | 9 files / 79 test cases (+6 instrumentation), all passing in run `44474918008` |
 | Room database tests (API 29/33/34) | ✅ TESTED | Robolectric `@Config` matrix, JVM |
-| Migration test | ✅ TESTED | Self-contained v1 schema. (Earlier claim of an emulator pass was wrong — see the note below.) The test itself exposed that `MIGRATION_1_2` was not idempotent; that is now fixed |
-| Navigation smoke test | 🟡 MANUAL | `NavigationInstrumentedTest` — real Hilt graph on a device. Not yet observed green (the emulator jobs have not completed a full run) |
-| Calculator UI test | 🟡 MANUAL | `CalculatorInstrumentedTest` — four cases (2+3, clear, precedence, divide-by-zero) asserting on tagged nodes. It previously failed for three distinct reasons and is **not yet observed green**; see the emulator row above |
-| Emulator matrix API 29/33/36 | ⛔ BLOCKED | Run `44478519934` reported success but had executed **zero** tests — a hollow pass the workflow did not detect. Run `44479827314` (after adding a "fail if zero tests" guard) revealed three genuine failures, now fixed: a duplicate-DataStore crash, ambiguous text matching in the calculator test, and a Hilt `hiltViewModel()` resolution failure inside `HiltTestActivity`. A re-run is pending |
+| Migration test | ✅ TESTED | Self-contained v1 schema; green on API 29/33/36 in run `44481063498`. Writing it exposed that `MIGRATION_1_2` was not idempotent (`duplicate column name` on re-run), which is now fixed |
+| Navigation smoke test | ✅ TESTED | `NavigationInstrumentedTest` — real Hilt graph on a device; green on API 29/33/36 in run `44481063498` |
+| Calculator UI test | ✅ TESTED | `CalculatorInstrumentedTest` — four cases (2+3=5, clear, operator precedence, divide-by-zero) asserting on tagged nodes; green on API 29/33/36 in run `44481063498` |
+| Emulator matrix API 29/33/36 | ✅ TESTED | Run `44481063498`: API 29, 33 and 36 all passed with results verified non-empty. Getting here found four real problems: run `44478519934` was a **hollow pass** (zero tests executed); run `44479827314` then exposed a duplicate-DataStore crash, ambiguous calculator text matching, and a Hilt `hiltViewModel()` failure inside `HiltTestActivity`. All are fixed, and the workflow now fails if no test XML is produced |
 | Lint (`lintDebug`) | ✅ TESTED | Passed in run `44474918008` |
 | Lint (`lintRelease`) | ⛔ BLOCKED | Only runs inside the release workflow; needs signing secrets |
 | Physical device testing | ➖ N/A | No device available; documented as a gap in KNOWN_LIMITATIONS |
@@ -252,9 +253,9 @@ attached to the release.
 | 01 Research & plan | ✅ Complete |
 | 02 Scaffold | ✅ Complete, CI-verified |
 | 03 Implementation | ✅ Complete (2 items ⚠️ LIMITED by documented design, 3 🟡 MANUAL) |
-| 04 QA | ✅ Complete for automation available here; emulator matrix and lintRelease ⛔ unrun |
+| 04 QA | ✅ Unit tests, lint, PR workflow and the emulator matrix (API 29/33/36) all green. `lintRelease` runs only inside the release pipeline and is ⛔ pending signing secrets |
 | 05 Documentation | ✅ Complete — 22 documents + release notes |
-| 06 Release | ⚠️ Pipeline complete and gated; actual signing ⛔ blocked on a secret the automation cannot write |
+| 06 Release | ⚠️ Pipeline complete, with a `dry_run` mode that verifies gates 1–5; actual signing ⛔ blocked on a secret the automation cannot write |
 
 Nothing in this matrix is marked TESTED without a CI run to point at, and nothing
 is marked BUILT unless it compiles in that run.

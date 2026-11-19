@@ -91,12 +91,29 @@ verifies `C` resets the display.
 **API 33** (notification permission era) and **API 36** (current target), using
 `reactivecircus/android-emulator-runner` with KVM acceleration.
 
+Verified result: run **`44481063498`** passed on API 29, 33 and 36. The job fails if
+no result XML is produced, because an earlier run reported success while executing
+zero tests — a hollow pass this project now refuses to allow.
+
 ⚠️ **Honest reporting:** local sandbox execution of Android builds is impossible
 (no JDK/Android SDK, `dl.google.com` blocked). Everything above is executed on
 GitHub-hosted runners; links to the runs are recorded in the completion matrix.
 No physical-device testing has been performed, so OEM-specific behaviour
 (Samsung/Xiaomi background managers, unique bubble rendering quirks) remains
 untested and is documented in [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md).
+
+### What instrumentation testing actually found
+
+1. **A production bug:** `PreferenceDataStoreFactory.create` was called from a
+   `@Singleton` provider, but each Hilt component (including every
+   `HiltTestActivity`) opened the same `astratouch_prefs.preferences_pb`, crashing
+   with "multiple DataStores active for the same file". Fixed with a process-wide
+   holder keyed by file path.
+2. **A flaky test:** matching calculator keys by bare text hit the display and the
+   history list. Keys, display and result now carry `testTag`s.
+3. **A test-harness gap:** `hiltViewModel()` cannot resolve inside
+   `HiltTestActivity` because the activity's default factory is not Hilt-backed.
+   The calculator test now injects the (dependency-free) ViewModel explicitly.
 
 ## Writing new tests
 

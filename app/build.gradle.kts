@@ -56,7 +56,7 @@ android {
         versionCode = astraVersionCode
         versionName = astraVersionName
 
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunner = "com.astratouch.app.HiltTestRunner"
         vectorDrawables { useSupportLibrary = true }
 
         buildConfigField("String", "ASTRA_APPLICATION_ID", "\"$astraApplicationId\"")
@@ -216,6 +216,8 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
     // Instrumentation tests
+    androidTestImplementation(libs.hilt.android.testing)
+    kspAndroidTest(libs.hilt.compiler)
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.rules)

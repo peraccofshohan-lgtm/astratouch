@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+      Host activity used exclusively by Compose UI tests (debug variant only).
+      It is merged into debug builds and never shipped in the release APK.
+    -->
+    <application tools:ignore="MissingApplicationIcon">
+        <activity
+            android:name=".HiltTestActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AstraTouch" />
+    </application>
+</manifest>

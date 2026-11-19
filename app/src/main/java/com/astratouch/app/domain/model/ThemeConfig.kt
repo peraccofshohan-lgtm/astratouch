@@ -1,5 +1,7 @@
 package com.astratouch.app.domain.model
 
+import kotlinx.serialization.Serializable
+
 /** The five themes required by Part 12. */
 enum class ThemePreset(
     val id: String,
@@ -75,6 +77,7 @@ enum class ThemePreset(
 }
 
 /** Fully resolved theme row, allowing the Custom preset to be edited. */
+@Serializable
 data class ThemeConfig(
     val id: String = "theme-default",
     val presetId: String = ThemePreset.MIDNIGHT_OBSIDIAN.id,

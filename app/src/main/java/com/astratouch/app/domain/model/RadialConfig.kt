@@ -1,6 +1,9 @@
 package com.astratouch.app.domain.model
 
+import kotlinx.serialization.Serializable
+
 /** The eight required radial menu layouts (Part 6). */
+@Serializable
 enum class RadialLayout(val label: String) {
     FULL_CIRCLE("Full circle"),
     SEMI_CIRCLE("Semi circle"),
@@ -33,6 +36,7 @@ enum class RadialLayout(val label: String) {
     }
 }
 
+@Serializable
 data class RadialConfig(
     val id: String = "radial-default",
     val profileId: String = ProfileType.DEFAULT.id,
@@ -52,6 +56,7 @@ data class RadialConfig(
 )
 
 /** One placed command inside a radial page. */
+@Serializable
 data class RadialMenuItem(
     val id: String = "",
     val radialConfigId: String = "radial-default",
@@ -64,6 +69,7 @@ data class RadialMenuItem(
     val isFavorite: Boolean = false,
 )
 
+@Serializable
 data class RecentAction(
     val actionId: String,
     val usedAt: Long,

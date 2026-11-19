@@ -1,6 +1,9 @@
 package com.astratouch.app.domain.model
 
+import kotlinx.serialization.Serializable
+
 /** A single executable step inside a macro (Part 10). */
+@Serializable
 data class MacroStep(
     val id: String = "",
     val macroId: String = "",
@@ -12,6 +15,7 @@ data class MacroStep(
     val label: String = "",
 )
 
+@Serializable
 enum class StepType(val label: String) {
     ACTION("Run action"),
     DELAY("Wait"),
@@ -24,6 +28,7 @@ enum class StepType(val label: String) {
 }
 
 /** Supported conditional operators for CONDITION steps. */
+@Serializable
 enum class ConditionType(val label: String) {
     PROFILE_IS("Active profile is"),
     BUBBLE_VISIBLE("Bubble is visible"),
@@ -39,6 +44,7 @@ enum class ConditionType(val label: String) {
     }
 }
 
+@Serializable
 data class Macro(
     val id: String = "",
     val profileId: String = ProfileType.DEFAULT.id,
@@ -54,6 +60,7 @@ data class Macro(
     val lastRunStatus: MacroRunStatus = MacroRunStatus.NEVER,
 )
 
+@Serializable
 enum class MacroRunStatus(val label: String) {
     NEVER("Never run"),
     RUNNING("Running"),
@@ -69,6 +76,7 @@ enum class MacroRunStatus(val label: String) {
     }
 }
 
+@Serializable
 data class MacroExecutionRecord(
     val id: Long = 0,
     val macroId: String,

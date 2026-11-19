@@ -1,6 +1,9 @@
 package com.astratouch.app.domain.model
 
+import kotlinx.serialization.Serializable
+
 /** A note stored locally (Part 13). */
+@Serializable
 data class Note(
     val id: Long = 0,
     val title: String,
@@ -14,6 +17,7 @@ data class Note(
 }
 
 /** A clipboard capture. Sensitive content is never persisted (Part 13). */
+@Serializable
 data class ClipboardRecord(
     val id: Long = 0,
     val content: String,
@@ -25,6 +29,7 @@ data class ClipboardRecord(
 )
 
 /** A favourite or grouped app entry for the launcher (Part 11). */
+@Serializable
 data class FavoriteApp(
     val packageName: String,
     val label: String,
@@ -34,6 +39,7 @@ data class FavoriteApp(
     val launchCount: Int = 0,
 )
 
+@Serializable
 data class LauncherApp(
     val packageName: String,
     val label: String,
@@ -44,6 +50,7 @@ data class LauncherApp(
 )
 
 /** A timer/countdown created in the Timer screen. */
+@Serializable
 data class AstraTimer(
     val id: Long = 0,
     val label: String,
@@ -55,6 +62,7 @@ data class AstraTimer(
 )
 
 /** Settings that are not part of a themed profile, stored in DataStore. */
+@Serializable
 data class AppPreferences(
     val onboardingComplete: Boolean = false,
     val overlayEnabled: Boolean = false,

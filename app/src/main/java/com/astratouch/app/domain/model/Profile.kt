@@ -1,6 +1,9 @@
 package com.astratouch.app.domain.model
 
+import kotlinx.serialization.Serializable
+
 /** The six built-in smart profiles (Part 11) plus user-created ones. */
+@Serializable
 enum class ProfileType(val id: String, val label: String, val description: String) {
     DEFAULT("default", "Default", "Everyday use — balanced bubble and a full radial menu."),
     WORK("work", "Work", "Tighter bubble, productivity actions and the Work macro up front."),
@@ -22,6 +25,7 @@ enum class ProfileType(val id: String, val label: String, val description: Strin
  * A profile is a bundle of independent configuration: bubble style, menu,
  * gestures, shortcuts, macros, theme and behaviour.
  */
+@Serializable
 data class Profile(
     val id: String = ProfileType.DEFAULT.id,
     val type: ProfileType = ProfileType.DEFAULT,

@@ -1,6 +1,9 @@
 package com.astratouch.app.domain.model
 
+import kotlinx.serialization.Serializable
+
 /** Gestures recognised by the AstraTouch gesture engine (Part 9). */
+@Serializable
 enum class GestureType(val label: String, val isSwipe: Boolean) {
     SINGLE_TAP("Single tap", false),
     DOUBLE_TAP("Double tap", false),
@@ -22,6 +25,7 @@ enum class GestureType(val label: String, val isSwipe: Boolean) {
  * @param swipeThresholdPx minimum travel distance that counts as a swipe
  * @param sensitivity 0.2f (deliberate) … 2.0f (twitchy); scales the swipe threshold
  */
+@Serializable
 data class GestureMapping(
     val id: String = "",
     val profileId: String = ProfileType.DEFAULT.id,

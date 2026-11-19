@@ -1,11 +1,14 @@
 package com.astratouch.app.domain.model
 
+import kotlinx.serialization.Serializable
+
 /**
  * A single configuration value that a floating bubble can render.
  *
  * Persisted as columns in `bubble_configs` (see docs/DATABASE.md) so that the
  * overlay can react to individual field changes without re-reading the whole row.
  */
+@Serializable
 data class BubbleConfig(
     val id: String = "bubble-default",
     val profileId: String = ProfileType.DEFAULT.id,
@@ -37,6 +40,7 @@ data class BubbleConfig(
     val hasStoredPosition: Boolean get() = positionX >= 0 && positionY >= 0
 }
 
+@Serializable
 enum class BubbleShape(val label: String) {
     CIRCLE("Circle"),
     SQUIRCLE("Squircle"),
@@ -53,6 +57,7 @@ enum class BubbleShape(val label: String) {
     }
 }
 
+@Serializable
 enum class SnapMode(val label: String) {
     NONE("Free"),
     EDGE("Snap to edge"),
@@ -64,6 +69,7 @@ enum class SnapMode(val label: String) {
     }
 }
 
+@Serializable
 enum class DockSide(val label: String) {
     LEFT("Left"),
     RIGHT("Right"),
@@ -78,6 +84,7 @@ enum class DockSide(val label: String) {
     }
 }
 
+@Serializable
 enum class AnimationStyle(val label: String) {
     NONE("None"),
     SPRING("Spring"),

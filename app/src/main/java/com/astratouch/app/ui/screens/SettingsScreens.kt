@@ -622,6 +622,7 @@ fun AboutScreen(onBack: () -> Unit) {
             context.packageManager.getPackageInfo(context.packageName, 0)
         }.getOrNull()
     }
+    var diagnosticsCopied by remember { mutableStateOf(false) }
     AstraScaffold(title = "About AstraTouch", subtitle = "Your Phone. Your Control.", onBack = onBack) { modifier ->
         Column(
             modifier
@@ -680,6 +681,27 @@ fun AboutScreen(onBack: () -> Unit) {
                     color = astra.onBackground.copy(alpha = 0.75f),
                 )
             }
+            SectionHeader("Support")
+            AstraCard {
+                Column {
+                    Text(
+                        "Diagnostics lists your version, Android level, which special accesses are " +
+                            "granted and whether the overlay service is running. It contains no personal " +
+                            "data, no clipboard content and no app list.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = astra.onBackground.copy(alpha = 0.75f),
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    AstraSecondaryButton(
+                        text = if (diagnosticsCopied) "Diagnostics copied" else "Copy diagnostics",
+                        onClick = {
+                            DiagnosticsReport.copyToClipboard(context, packageInfo?.versionName ?: "?")
+                            diagnosticsCopied = true
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
             SectionHeader("Open source")
             AstraCard {
                 Column {
@@ -711,6 +733,54 @@ private fun InfoRow(label: String, value: String) {
             style = MaterialTheme.typography.labelMedium,
             color = astra.primary,
             textAlign = TextAlign.End,
+        )
+    }
+}
+
+/**
+ * Builds the plain-text diagnostics block offered by **About → Copy diagnostics**.
+ *
+ * Deliberately excludes anything personal: no clipboard text, no notes, no
+ * installed-app list, no identifiers. Only version metadata and boolean access
+ * state, so users can paste it into a bug report without leaking their data.
+ */
+internal object DiagnosticsReport {
+    fun build(context: android.content.Context, versionName: String): String {
+        val overlay = OverlayController.isRunning()
+        val accessibility = com.astratouch.app.accessibility.AstraAccessibilityService.instance != null
+        // POST_NOTIFICATIONS only exists from API 33; below that notifications are
+        // granted at install time, so reporting "false" there would be a lie.
+        val notifications = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) ==
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+        } else {
+            true
+        }
+        return buildString {
+            appendLine("AstraTouch diagnostics")
+            appendLine("version: $versionName (${BuildConfig.ASTRA_VERSION_CODE})")
+            appendLine("package: ${context.packageName}")
+            appendLine("android: ${android.os.Build.VERSION.RELEASE} (API ${android.os.Build.VERSION.SDK_INT})")
+            appendLine("device: ${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}")
+            appendLine("minSdk/targetSdk: ${BuildConfig.ASTRA_MIN_SDK}/${BuildConfig.ASTRA_TARGET_SDK}")
+            appendLine("buildType: ${if (BuildConfig.DEBUG) "debug" else "release"}")
+            appendLine("overlayPermission: ${android.provider.Settings.canDrawOverlays(context)}")
+            appendLine("overlayService: ${if (overlay) "running" else "stopped"}")
+            appendLine("accessibility: ${if (accessibility) "connected" else "not connected"}")
+            appendLine("writeSettings: ${android.provider.Settings.System.canWrite(context)}")
+            appendLine("notifications: $notifications")
+            val power = context.getSystemService(android.os.PowerManager::class.java)
+            appendLine("batteryOptimized: ${power?.isIgnoringBatteryOptimizations(context.packageName) == false}")
+            append("network: none (INTERNET permission not declared)")
+            // Action count is deliberately omitted: it needs the injected registry,
+            // and the About screen has no ViewModel. Settings shows the live count.
+        }
+    }
+
+    fun copyToClipboard(context: android.content.Context, versionName: String) {
+        val clipboard = context.getSystemService(android.content.ClipboardManager::class.java)
+        clipboard?.setPrimaryClip(
+            android.content.ClipData.newPlainText("AstraTouch diagnostics", build(context, versionName)),
         )
     }
 }

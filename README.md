@@ -55,15 +55,17 @@ AstraTouch requests **no** `INTERNET` permission. Details: [docs/PERMISSIONS.md]
 
 ## Build from source
 
-Requires **JDK 17+** (CI uses 21) and Android SDK platform 36.
+Requires **JDK 21** (the same version CI uses) and Android SDK platform 36 with
+build-tools 36.0.0. Bytecode targets Java 17, but the Gradle/AGP toolchain itself
+needs a 21 JDK.
 
 ```bash
 ./gradlew clean
-./gradlew assembleDebug
-./gradlew test
-./gradlew lint
-./gradlew assembleRelease   # signed only when signing env vars/key.properties are supplied
-./gradlew check
+./gradlew :app:assembleDebug        # debug APK -> app/build/outputs/apk/debug/
+./gradlew :app:testDebugUnitTest    # 80 JVM unit tests
+./gradlew :app:lintDebug            # Android Lint (abortOnError = true)
+./gradlew :app:connectedDebugAndroidTest   # needs an emulator/device
+./gradlew :app:assembleRelease      # signed only when signing env vars/key.properties are supplied
 ```
 
 Full instructions, including R8 and signing setup: [docs/BUILDING.md](docs/BUILDING.md).
@@ -73,6 +75,12 @@ Full instructions, including R8 and signing setup: [docs/BUILDING.md](docs/BUILD
 Signed APKs are built and published by GitHub Actions when a `v*` tag is pushed — see
 [docs/RELEASE_PROCESS.md](docs/RELEASE_PROCESS.md) and [docs/GITHUB_ACTIONS.md](docs/GITHUB_ACTIONS.md).
 The APK is never committed to the repository; it lives only as a release asset.
+
+The pipeline fails closed: it refuses to publish unless a semver tag matches
+`gradle.properties`, unit tests and `lintRelease` pass, the APK is signed by the
+real release key (never a debug key) with v2+v3 schemes, `aapt2` reports the
+expected package/versions/SDKs, and the published asset's SHA-256 re-verifies after
+upload. A `dry_run` input verifies every gate that does not need signing material.
 
 ## Known limitations
 

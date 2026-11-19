@@ -1,0 +1,40 @@
+# Gradle & build outputs
+.gradle/
+**/build/
+!src/**/build/
+out/
+
+# Local configuration & IDE
+local.properties
+*.iml
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Signing keys & secrets (NEVER COMMIT - H26, H27)
+*.jks
+*.keystore
+key.properties
+keystore.properties
+signing.properties
+release-keystore.*
+*.pem
+*.p12
+*.pfx
+
+# Release / build artifacts (H31 - published via GitHub Releases only)
+*.apk
+*.aab
+*.ap_
+*.dex
+SHA256SUMS.txt
+release-metadata.json
+
+# Kotlin / KSP / Lint caches
+.kotlin/
+lint-results*.html
+lint-results*.xml

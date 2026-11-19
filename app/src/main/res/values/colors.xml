@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="astra_void">#FF06070C</color>
+    <color name="astra_surface">#FF0E1018</color>
+    <color name="astra_cyan">#FF32E6E2</color>
+    <color name="astra_icon_bg">#FF0B0D14</color>
+</resources>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Minimal device-admin policy for the optional Lock Screen action.
+  AstraTouch requests only force-lock; no wipe, no password policy, no camera
+  disable. See docs/PERMISSIONS.md for the rationale.
+-->
+<device-admin xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-policies>
+        <force-lock />
+    </uses-policies>
+</device-admin>

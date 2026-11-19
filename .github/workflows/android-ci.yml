@@ -59,9 +59,26 @@ jobs:
           set -o pipefail
           ./gradlew :app:assembleDebug --no-daemon --console=plain 2>&1 | tee build-logs/assemble-debug.log
 
+      # The published artifact is the `debugPersonal` variant. Building it in CI
+      # catches build-type-specific breakage (R8 shrinking, resource shrinking,
+      # missing debug-only sources) long before a release tag is pushed.
+      - name: Build personal (published) APK
+        run: |
+          set -o pipefail
+          ./gradlew :app:assembleDebugPersonal --no-daemon --console=plain 2>&1 | tee build-logs/assemble-personal.log
+
       - name: Report failures as annotations
         if: failure()
         run: bash .github/scripts/report-failure.sh build-logs
+
+      - name: Upload personal APK
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: astratouch-debugpersonal-apk
+          path: app/build/outputs/apk/debugPersonal/*.apk
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Upload debug APK
         if: always()

@@ -15,16 +15,22 @@ captures/
 .externalNativeBuild/
 .cxx/
 
-# Signing keys & secrets (NEVER COMMIT - H26, H27)
+# Signing keys & secrets (NEVER COMMIT)
 *.jks
 *.keystore
 key.properties
 keystore.properties
 signing.properties
 release-keystore.*
-*.pem
 *.p12
 *.pfx
+*.b64
+*.pem
+# ...but the PUBLIC debug certificate MUST be tracked.
+# Android compares the signing *certificate* to decide whether an update may
+# replace an installed app, so committing this 688-byte public certificate is what
+# makes every published build updatable. It contains no private key.
+!signing/astratouch-debug-cert.pem
 
 # Release / build artifacts (H31 - published via GitHub Releases only)
 *.apk

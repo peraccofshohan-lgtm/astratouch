@@ -1,0 +1,21 @@
+# Stable personal-use debug signing identity for AstraTouch.
+#
+# This file records which certificate published APKs are signed with. The release
+# workflow fails if a build ever produces a different certificate, because Android
+# refuses to update an installed app whose signing certificate changed.
+#
+# The certificate is PUBLIC and lives at signing/astratouch-debug-cert.pem.
+# The corresponding private key is NEVER committed: it is re-derived on demand by
+# scripts/derive-debug-keystore.py from ASTRA_DEBUG_SEED (or the built-in default
+# seed) and written only to a temporary directory during the build.
+#
+# Regenerating this identity deliberately:
+#   1. Delete signing/astratouch-debug-cert.pem
+#   2. python3 scripts/derive-debug-keystore.py --out /tmp/k.p12 #        --cert-out signing/astratouch-debug-cert.pem
+#   3. Update the fingerprint line below to the new value.
+# Doing so makes previously published APKs non-upgradable; users must uninstall.
+
+SHA-256 fingerprint: 198476e1822fb79f6c85c426c5c450c66c87db2982b88f90139c1eae19b3920e
+Subject: CN=AstraTouch Debug, O=AstraTouch Personal, C=BD
+Key: EC P-256 (prime256v1)
+Validity: 2024-01-01 .. 2053-12-24

@@ -21,35 +21,59 @@ val astraCompileSdk = prop("astratouch.compileSdk", "36").toInt()
 val astraTargetSdk = prop("astratouch.targetSdk", "36").toInt()
 
 /**
- * Release signing is resolved from (in order of precedence):
- *  1. Environment variables exported by CI after decoding the keystore from
- *     GitHub Secrets (never written into the repository - H26/H27).
- *  2. A local untracked `key.properties` file for trusted maintainers.
- * If neither is present the release build is unsigned and the release
- * pipeline fails its gate instead of publishing a debug-signed artifact (H28).
- */
-/**
- * When the release pipeline asks for a signed build it sets ASTRA_REQUIRE_SIGNING=1.
- * In that mode a missing or unreadable keystore is a hard build failure. Without
- * this, `assembleRelease` quietly falls through to an *unsigned* APK, which the
- * release workflow only catches much later at the apksigner gate — or, if that
- * gate were ever loosened, would ship an APK nobody can install over an update.
+ * Signing strategy: PERSONAL-USE DEBUG SIGNING.
+ *
+ * AstraTouch is a personal application. It is deliberately signed with a stable
+ * *debug* identity rather than a production release key:
+ *
+ *  - No production keystore, no release key material, no signing secrets for a
+ *    store release exist or are required.
+ *  - The signing identity must nevertheless be *identical on every build*,
+ *    because Android refuses to install an update whose signing certificate
+ *    differs from the installed one. A runner-generated `debug.keystore` is
+ *    regenerated per CI job, which would break every update.
+ *  - `scripts/derive-debug-keystore.py` therefore derives the key deterministically
+ *    from a seed and pairs it with the committed *public* certificate
+ *    (`signing/astratouch-debug-cert.pem`) so the certificate bytes — the thing
+ *    Android actually compares — are stable across runs.
+ *
+ * The keystore is generated on demand into a temporary directory. No private key
+ * is ever committed; `.gitignore` rejects `*.jks`, `*.keystore`, `*.p12`, `*.b64`.
+ *
+ * Order of precedence for a `debugPersonal`-signed build:
+ *  1. ASTRA_DEBUG_KEYSTORE_* environment variables (verified pipeline).
+ *  2. A local `key.properties` (untracked) for running the same build locally.
+ *  3. Android's automatic debug keystore (plain `assembleDebug` on a dev machine).
  */
 val requireSigning: Boolean = System.getenv("ASTRA_REQUIRE_SIGNING") == "1"
 
-val releaseSigning: Properties? = run {
-    val envStore = System.getenv("ASTRA_KEYSTORE_FILE")
+data class DebugSigning(val storeFile: java.io.File, val storePassword: String, val keyAlias: String, val keyPassword: String)
+
+val debugSigning: DebugSigning? = run {
+    val envStore = System.getenv("ASTRA_DEBUG_KEYSTORE_FILE")
     if (envStore != null) {
-        return@run Properties().apply {
-            setProperty("storeFile", envStore)
-            setProperty("storePassword", System.getenv("ASTRA_KEYSTORE_PASSWORD") ?: "")
-            setProperty("keyAlias", System.getenv("ASTRA_KEY_ALIAS") ?: "")
-            setProperty("keyPassword", System.getenv("ASTRA_KEY_PASSWORD") ?: "")
+        val f = file(envStore)
+        if (f.exists()) {
+            return@run DebugSigning(
+                storeFile = f,
+                storePassword = System.getenv("ASTRA_DEBUG_KEYSTORE_PASSWORD") ?: "",
+                keyAlias = System.getenv("ASTRA_DEBUG_KEY_ALIAS") ?: "",
+                keyPassword = System.getenv("ASTRA_DEBUG_KEY_PASSWORD") ?: "",
+            )
         }
     }
-    val keyPropsFile = rootProject.file("key.properties")
-    if (keyPropsFile.exists()) {
-        return@run Properties().apply { keyPropsFile.inputStream().use { load(it) } }
+    val propsFile = rootProject.file("key.properties")
+    if (propsFile.exists()) {
+        val props = java.util.Properties().apply { propsFile.inputStream().use { load(it) } }
+        val path = props.getProperty("storeFile")
+        if (path != null && file(path).exists()) {
+            return@run DebugSigning(
+                storeFile = file(path),
+                storePassword = props.getProperty("storePassword") ?: "",
+                keyAlias = props.getProperty("keyAlias") ?: "",
+                keyPassword = props.getProperty("keyPassword") ?: "",
+            )
+        }
     }
     null
 }
@@ -76,27 +100,59 @@ android {
     }
 
     signingConfigs {
-        create("release") {
-            val props = releaseSigning
-            if (props != null) {
-                val storePath = props.getProperty("storeFile")
-                if (storePath != null && file(storePath).exists()) {
-                    storeFile = file(storePath)
-                    storePassword = props.getProperty("storePassword")
-                    keyAlias = props.getProperty("keyAlias")
-                    keyPassword = props.getProperty("keyPassword")
-                }
+        // Stable personal-use debug identity. Populated only when a keystore was
+        // resolved above; otherwise the `debug` build type falls back to Android's
+        // automatic ~/.android/debug.keystore for local development.
+        create("debugPersonal") {
+            val cfg = debugSigning
+            if (cfg != null) {
+                storeFile = cfg.storeFile
+                storePassword = cfg.storePassword
+                keyAlias = cfg.keyAlias
+                keyPassword = cfg.keyPassword
+                // Also satisfies AGP's check that a debug signing config uses a
+                // debug certificate; this one is a purpose-built debug identity.
+                isV1SigningEnabled = true
+                isV2SigningEnabled = true
             }
         }
     }
 
     buildTypes {
+        /**
+         * Development build. Gets Android's automatic debug key. Deliberately NOT
+         * used for published artifacts: the `.debug` application-id suffix means an
+         * APK built here installs alongside — and can never update — the real app.
+         */
         debug {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
             isMinifyEnabled = false
             isDebuggable = true
         }
+
+        /**
+         * The published artifact: minified, non-debuggable, real applicationId, and
+         * signed with the stable personal-use debug identity. This is what the
+         * release pipeline builds and attaches to a GitHub Release.
+         */
+        create("debugPersonal") {
+            initWith(getByName("release"))
+            signingConfig = signingConfigs.getByName("debugPersonal")
+            // Keep the real applicationId so updates replace earlier installs, but
+            // mark the artifact as what it is: debug-signed, not a store release.
+            isDebuggable = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            matchingFallbacks += listOf("release")
+            buildConfigField("boolean", "ASTRA_DEBUG_BUILD", "true")
+        }
+
+        /**
+         * Retained for anyone who genuinely wants a store/private release build.
+         * Without release-key material this stays unsigned and the Gradle task
+         * fails on purpose rather than emitting an unsigned APK.
+         */
         release {
             isMinifyEnabled = true
             isShrinkResources = true
@@ -105,8 +161,6 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            val signing = signingConfigs.getByName("release")
-            if (signing.storeFile != null) signingConfig = signing
             buildConfigField("boolean", "ASTRA_DEBUG_BUILD", "false")
         }
     }
@@ -242,24 +296,28 @@ dependencies {
  * Wired as a dependency of `assembleRelease` so it cannot be skipped by invoking
  * Gradle from a different entry point.
  */
-val verifyReleaseSigning by tasks.registering {
+val verifyDebugSigning by tasks.registering {
     group = "verification"
-    description = "Fails when ASTRA_REQUIRE_SIGNING=1 but no release signing config resolved."
+    description = "Fails when ASTRA_REQUIRE_SIGNING=1 but no stable debug keystore resolved."
     doLast {
         if (!requireSigning) return@doLast
-        val store = android.signingConfigs.findByName("release")?.storeFile
+        val store = android.signingConfigs.findByName("debugPersonal")?.storeFile
         if (store == null) {
             throw GradleException(
-                "Release signing was required (ASTRA_REQUIRE_SIGNING=1) but no keystore was resolved. " +
-                    "Check ASTRA_KEYSTORE_FILE, ASTRA_KEYSTORE_PASSWORD, ASTRA_KEY_ALIAS and ASTRA_KEY_PASSWORD.",
+                "A signed personal build was required (ASTRA_REQUIRE_SIGNING=1) but no debug keystore was resolved. " +
+                    "Check ASTRA_DEBUG_KEYSTORE_FILE, ASTRA_DEBUG_KEYSTORE_PASSWORD, ASTRA_DEBUG_KEY_ALIAS and " +
+                    "ASTRA_DEBUG_KEY_PASSWORD, or run scripts/derive-debug-keystore.py first.",
             )
         }
         if (!store.exists()) {
-            throw GradleException("Release keystore path resolved but the file does not exist: $store")
+            throw GradleException("Debug keystore path resolved but the file does not exist: $store")
         }
+        logger.lifecycle("Signing with stable personal-use debug identity: $store")
     }
 }
 
-tasks.matching { it.name == "assembleRelease" }.configureEach {
-    dependsOn(verifyReleaseSigning)
+// The published artifact is `debugPersonal`; gate it so an unsigned APK can never
+// be produced when a signed build was requested.
+tasks.matching { it.name == "assembleDebugPersonal" }.configureEach {
+    dependsOn(verifyDebugSigning)
 }

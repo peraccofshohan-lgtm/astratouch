@@ -668,7 +668,7 @@ fun AboutScreen(onBack: () -> Unit) {
                     InfoRow("Application ID", BuildConfig.ASTRA_APPLICATION_ID)
                     InfoRow("Package", packageInfo?.packageName ?: context.packageName)
                     InfoRow("Min / target SDK", "${BuildConfig.ASTRA_MIN_SDK} / ${BuildConfig.ASTRA_TARGET_SDK}")
-                    InfoRow("Build type", if (BuildConfig.DEBUG) "debug" else "release")
+                    InfoRow("Build", buildLabel())
                     InfoRow("License", "MIT (see LICENSE)")
                 }
             }
@@ -763,7 +763,7 @@ internal object DiagnosticsReport {
             appendLine("android: ${android.os.Build.VERSION.RELEASE} (API ${android.os.Build.VERSION.SDK_INT})")
             appendLine("device: ${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}")
             appendLine("minSdk/targetSdk: ${BuildConfig.ASTRA_MIN_SDK}/${BuildConfig.ASTRA_TARGET_SDK}")
-            appendLine("buildType: ${if (BuildConfig.DEBUG) "debug" else "release"}")
+            appendLine("build: ${buildLabel()}")
             appendLine("overlayPermission: ${android.provider.Settings.canDrawOverlays(context)}")
             appendLine("overlayService: ${if (overlay) "running" else "stopped"}")
             appendLine("accessibility: ${if (accessibility) "connected" else "not connected"}")
@@ -783,4 +783,17 @@ internal object DiagnosticsReport {
             android.content.ClipData.newPlainText("AstraTouch diagnostics", build(context, versionName)),
         )
     }
+}
+
+/**
+ * Describes how this build was produced.
+ *
+ * AstraTouch is a personal-use app published with a stable *debug* signing
+ * identity, so "debug" alone would be misleading (the published artifact is
+ * minified and non-debuggable) and "release" would be wrong too.
+ */
+private fun buildLabel(): String = when {
+    BuildConfig.DEBUG -> "debug (development)"
+    BuildConfig.ASTRA_DEBUG_BUILD -> "debug-signed personal build"
+    else -> "release-signed"
 }

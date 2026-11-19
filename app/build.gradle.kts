@@ -64,7 +64,8 @@ val debugSigning: DebugSigning? = run {
     }
     val propsFile = rootProject.file("key.properties")
     if (propsFile.exists()) {
-        val props = java.util.Properties().apply { propsFile.inputStream().use { load(it) } }
+        val props = Properties()
+        propsFile.inputStream().use { stream -> props.load(stream) }
         val path = props.getProperty("storeFile")
         if (path != null && file(path).exists()) {
             return@run DebugSigning(

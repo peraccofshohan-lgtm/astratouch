@@ -118,7 +118,7 @@ object DefaultMacros {
                 description = "Silence notifications, dim the screen and open the note pad.",
                 icon = "ic_work",
                 steps = listOf(
-                    Triple(StepType.ACTION, ActionIds.OPEN_QUICK_SETTINGS, 400L),
+                    Triple(StepType.ACTION, ActionIds.QUICK_SETTINGS, 400L),
                     Triple(StepType.DELAY, "", 600L),
                     Triple(StepType.ACTION, ActionIds.OPEN_NOTES, 0L),
                 ),

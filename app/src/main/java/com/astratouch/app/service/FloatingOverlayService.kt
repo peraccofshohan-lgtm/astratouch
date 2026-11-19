@@ -41,6 +41,7 @@ import com.astratouch.app.service.overlay.MutableOverlayStateHolder
 import com.astratouch.app.service.overlay.OverlayController
 import com.astratouch.app.service.overlay.OverlayGeometry
 import com.astratouch.app.service.overlay.OverlayState
+import com.astratouch.app.ui.overlay.AstraOverlayHost
 import com.astratouch.app.ui.theme.AstraTheme
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -89,7 +90,7 @@ class FloatingOverlayService : androidx.lifecycle.LifecycleService(), OverlayCon
     override fun onCreate() {
         super.onCreate()
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
-        instance = this
+        OverlayController.instance = this
         promoteToForeground()
         stateHolder.update { it.copy(isRunning = true, activeProfileId = currentProfileId) }
         observeProfile()
@@ -108,13 +109,13 @@ class FloatingOverlayService : androidx.lifecycle.LifecycleService(), OverlayCon
         return START_STICKY
     }
 
-    override fun onBind(intent: Intent?): IBinder? {
+    override fun onBind(intent: Intent): IBinder? {
         super.onBind(intent)
         return null
     }
 
     override fun onDestroy() {
-        instance = null
+        OverlayController.instance = null
         removeBubble()
         stateHolder.update { OverlayState.STOPPED }
         super.onDestroy()

@@ -39,7 +39,7 @@ data class GestureMapping(
 /** Default gesture bindings used when a profile is first created. */
 object DefaultGestureMappings {
     fun forProfile(profileId: String): List<GestureMapping> = listOf(
-        GestureMapping(profileId = profileId, gesture = GestureType.SINGLE_TAP, actionId = ActionIds.RADIAL_MENU_OPEN),
+        GestureMapping(profileId = profileId, gesture = GestureType.SINGLE_TAP, actionId = ActionIds.OPEN_RADIAL_MENU),
         GestureMapping(profileId = profileId, gesture = GestureType.DOUBLE_TAP, actionId = ActionIds.SCREENSHOT),
         GestureMapping(profileId = profileId, gesture = GestureType.LONG_PRESS, actionId = ActionIds.HOME),
         GestureMapping(profileId = profileId, gesture = GestureType.SWIPE_UP, actionId = ActionIds.RECENTS),

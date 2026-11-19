@@ -79,4 +79,43 @@ class RadialLayoutMathTest {
         assertEquals(180f, RadialLayoutMath.angleFor(RadialLayout.SEMI_CIRCLE, 0, 2), 0.01f)
         assertEquals(270f, RadialLayoutMath.angleFor(RadialLayout.QUARTER_CIRCLE, 1, 2), 0.01f)
     }
+
+    @Test
+    fun `nested layout uses two concentric rings`() {
+        val positions = RadialLayoutMath.positions(RadialLayout.NESTED, 8, 100, 40)
+        assertEquals(8, positions.size)
+        val radii = positions.map { kotlin.math.hypot(it.first, it.second) }
+        val inner = radii.filter { it < 70f }
+        val outer = radii.filter { it > 90f }
+        // Two rings means neither group may swallow all eight items.
+        assertEquals("expected an inner ring", 4, inner.size)
+        assertEquals("expected an outer ring", 4, outer.size)
+        inner.forEach { assertEquals(55f, it, 0.5f) }
+        outer.forEach { assertEquals(100f, it, 0.5f) }
+    }
+
+    @Test
+    fun `no two layouts are geometrically identical`() {
+        // Regression guard: NESTED and MULTI_PAGE used to be aliases of
+        // FULL_CIRCLE, so four of the eight advertised layouts drew the same shape.
+        val layouts = RadialLayout.entries
+        val rendered = layouts.associateWith { layout ->
+            RadialLayoutMath.positions(layout, 8, 100, 40)
+                .map { (x, y) -> "%.2f/%.2f".format(x, y) }
+        }
+        val duplicates = rendered.entries
+            .groupBy({ it.value }, { it.key })
+            .filterValues { it.size > 1 }
+        assertEquals("layouts with identical geometry: $duplicates", emptyMap<Any, Any>(), duplicates)
+    }
+
+    @Test
+    fun `multi page leaves a gutter for the pager`() {
+        val full = RadialLayoutMath.positions(RadialLayout.FULL_CIRCLE, 6, 100, 40)
+        val paged = RadialLayoutMath.positions(RadialLayout.MULTI_PAGE, 6, 100, 40)
+        assertEquals(full.size, paged.size)
+        paged.forEachIndexed { i, (_, y) ->
+            assertTrue("paged items must sit higher than full-circle items", y < full[i].second)
+        }
+    }
 }

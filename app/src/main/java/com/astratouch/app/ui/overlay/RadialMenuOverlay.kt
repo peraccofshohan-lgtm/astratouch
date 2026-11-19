@@ -232,8 +232,16 @@ object RadialLayoutMath {
             RadialLayout.QUARTER_CIRCLE -> circle(count, r, startDeg = 180f, sweepDeg = 90f)
             RadialLayout.COMPACT -> circle(count, r * 0.72f, startDeg = -90f, sweepDeg = 360f)
             RadialLayout.EXPANDED -> circle(count, r * 1.18f, startDeg = -90f, sweepDeg = 360f)
-            RadialLayout.NESTED -> circle(count, r, startDeg = -90f, sweepDeg = 360f)
+            // NESTED renders two concentric rings: the first `innerCount` items on
+            // an inner circle, the rest on the outer one. Previously this was an
+            // alias for FULL_CIRCLE, which meant two of the eight advertised
+            // layouts were visually identical.
+            RadialLayout.NESTED -> nested(count, r)
+            // MULTI_PAGE is a full circle whose items are spaced for a page
+            // indicator row; the geometry is a circle but sized to leave a gutter
+            // for the pager at the bottom.
             RadialLayout.MULTI_PAGE -> circle(count, r, startDeg = -90f, sweepDeg = 360f)
+                .map { (x, y) -> x to (y - itemSizeDp * 0.22f) }
             RadialLayout.GRID -> grid(count, r, itemSizeDp.toFloat())
         }
     }
@@ -245,6 +253,24 @@ object RadialLayoutMath {
             val angle = Math.toRadians((startDeg + i * step).toDouble())
             (radius * cos(angle)).toFloat() to (radius * sin(angle)).toFloat()
         }
+    }
+
+    /**
+     * Two concentric rings: up to five items on an inner circle at 55% of the
+     * radius, the remainder on the outer circle at 100%.
+     */
+    private fun nested(count: Int, radius: Float): List<Pair<Float, Float>> {
+        val innerCount = when {
+            count <= 3 -> count
+            count <= 6 -> 3
+            count <= 9 -> 4
+            else -> 5
+        }
+        val outerCount = count - innerCount
+        val inner = circle(innerCount, radius * 0.55f, startDeg = -90f, sweepDeg = 360f)
+        if (outerCount <= 0) return inner
+        val outer = circle(outerCount, radius, startDeg = -90f, sweepDeg = 360f)
+        return inner + outer
     }
 
     private fun grid(count: Int, radius: Float, itemSize: Float): List<Pair<Float, Float>> {
@@ -271,6 +297,8 @@ object RadialLayoutMath {
     fun angleFor(layout: RadialLayout, index: Int, count: Int): Float = when (layout) {
         RadialLayout.SEMI_CIRCLE -> 180f + if (count <= 1) 0f else 180f * index / (count - 1)
         RadialLayout.QUARTER_CIRCLE -> 180f + if (count <= 1) 0f else 90f * index / (count - 1)
+        // NESTED spreads both rings from the same start angle, so the visual
+        // rotation of the whole menu still follows a single sweep.
         else -> -90f + if (count <= 1) 0f else 360f * index / count
     }
 }

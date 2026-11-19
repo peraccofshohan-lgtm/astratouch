@@ -30,6 +30,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -78,6 +79,7 @@ import javax.inject.Inject
 @HiltViewModel
 class ScreenshotStudioViewModel @Inject constructor(
     private val store: ScreenshotStore,
+    private val recordingStore: com.astratouch.app.screenshot.RecordingStore,
     private val actionRegistry: ActionRegistry,
 ) : ViewModel() {
 
@@ -93,7 +95,23 @@ class ScreenshotStudioViewModel @Inject constructor(
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy.asStateFlow()
 
-    fun refresh() { _captures.value = store.refresh() }
+    private val _recordings = MutableStateFlow(recordingStore.list())
+    val recordings: StateFlow<List<com.astratouch.app.screenshot.RecordingFile>> =
+        _recordings.asStateFlow()
+
+    fun refresh() {
+        _captures.value = store.refresh()
+        _recordings.value = recordingStore.list()
+    }
+
+    fun deleteRecording(recording: com.astratouch.app.screenshot.RecordingFile) {
+        val ok = recordingStore.delete(recording.file)
+        _message.value = if (ok) "Deleted ${recording.name}." else "Could not delete ${recording.name}."
+        refresh()
+    }
+
+    fun recordingUri(recording: com.astratouch.app.screenshot.RecordingFile): android.net.Uri =
+        recordingStore.shareUri(recording.file)
 
     fun select(file: CaptureFile?) { _selected.value = file }
 
@@ -145,6 +163,7 @@ fun ScreenshotStudioScreen(
     val selected by viewModel.selected.collectAsState()
     val message by viewModel.message.collectAsState()
     val busy by viewModel.busy.collectAsState()
+    val recordings by viewModel.recordings.collectAsState()
     var showEditor by remember { mutableStateOf(false) }
     var recordingActive by remember { mutableStateOf(false) }
 
@@ -269,6 +288,54 @@ fun ScreenshotStudioScreen(
                 }
                 item { Spacer(Modifier.height(24.dp)) }
             }
+
+            item {
+                SectionHeader(
+                    "Recordings",
+                    if (recordings.isEmpty()) "No recordings yet" else "${recordings.size} MP4 file(s) in app-private storage",
+                )
+            }
+            if (recordings.isEmpty()) {
+                item {
+                    Text(
+                        "Screen recordings are saved as MP4 in app-private storage. Press " +
+                            "\"Record screen\" above, approve Android's capture dialog, then stop from here " +
+                            "or from the ongoing notification.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = astra.onBackground.copy(alpha = 0.6f),
+                    )
+                }
+            } else {
+                items(recordings.size) { index ->
+                    val recording = recordings[index]
+                    AstraCard {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Filled.PlayArrow,
+                                contentDescription = null,
+                                tint = astra.primary,
+                                modifier = Modifier.size(22.dp),
+                            )
+                            Spacer(Modifier.width(10.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(recording.name, style = MaterialTheme.typography.labelMedium, maxLines = 1)
+                                Text(
+                                    recording.readableSize,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = astra.onBackground.copy(alpha = 0.5f),
+                                )
+                            }
+                            TextButton(onClick = { shareRecording(context, viewModel, recording) }) {
+                                Text("Play")
+                            }
+                            TextButton(onClick = { viewModel.deleteRecording(recording) }) {
+                                Icon(Icons.Filled.Delete, contentDescription = "Delete", modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    }
+                }
+                item { Spacer(Modifier.height(24.dp)) }
+            }
         }
     }
 
@@ -283,6 +350,30 @@ fun ScreenshotStudioScreen(
             },
         )
     }
+}
+
+/**
+ * Hands the MP4 to whatever handles `video/mp4`. Uses the FileProvider URI with a
+ * read grant, so no other app gains access to AstraTouch's private storage.
+ */
+private fun shareRecording(
+    context: Context,
+    viewModel: ScreenshotStudioViewModel,
+    recording: com.astratouch.app.screenshot.RecordingFile,
+) {
+    val uri = runCatching { viewModel.recordingUri(recording) }.getOrNull()
+    if (uri == null) {
+        android.widget.Toast.makeText(context, "Could not open that recording.", android.widget.Toast.LENGTH_SHORT).show()
+        return
+    }
+    val intent = Intent(Intent.ACTION_VIEW).apply {
+        setDataAndType(uri, "video/mp4")
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    runCatching { context.startActivity(Intent.createChooser(intent, "Play recording")) }
+        .onFailure {
+            android.widget.Toast.makeText(context, "No app can play MP4 on this device.", android.widget.Toast.LENGTH_SHORT).show()
+        }
 }
 
 private fun share(context: Context, uri: android.net.Uri) {

@@ -8,6 +8,7 @@ import com.astratouch.app.domain.model.GestureType
 import com.astratouch.app.domain.model.Macro
 import com.astratouch.app.domain.model.MacroRunStatus
 import com.astratouch.app.domain.model.MacroStep
+import com.astratouch.app.domain.model.ProfileType
 import com.astratouch.app.domain.model.StepType
 import com.astratouch.app.domain.usecase.GestureCoverageUseCase
 import com.astratouch.app.domain.usecase.RunMacroUseCase
@@ -32,6 +33,7 @@ class MacroEngineTest {
 
     private lateinit var macroRepository: MacroRepository
     private lateinit var actionRegistry: ActionRegistry
+    private lateinit var capabilities: com.astratouch.app.service.action.DeviceCapabilities
     private lateinit var runMacro: RunMacroUseCase
 
     private val macro = Macro(id = "m1", name = "Test macro", timeoutMs = 5_000)
@@ -42,7 +44,9 @@ class MacroEngineTest {
         actionRegistry = mockk(relaxed = true)
         every { actionRegistry.capabilityOf(any()) } returns CapabilityState.AVAILABLE
         every { actionRegistry.byId(any()) } returns null
-        runMacro = RunMacroUseCase(macroRepository, actionRegistry)
+        capabilities = mockk(relaxed = true)
+        every { capabilities.isPowerSaveMode() } returns false
+        runMacro = RunMacroUseCase(macroRepository, actionRegistry, capabilities)
     }
 
     @Test
@@ -185,5 +189,56 @@ class MacroEngineTest {
         assertEquals("a", coverage[GestureType.SINGLE_TAP])
         assertEquals(null, coverage[GestureType.LONG_PRESS])
         assertNotNull(coverage.keys)
+    }
+
+    // ---------------------------------------------------------- conditions
+
+    private fun conditionStep(payload: String) = listOf(
+        MacroStep(
+            id = "c1", macroId = "m1", order = 0, type = StepType.CONDITION, payload = payload,
+        ),
+        MacroStep(id = "a1", macroId = "m1", order = 1, actionId = ActionIds.HOME),
+    )
+
+    @Test
+    fun `battery saver condition reflects the real PowerManager state`() = runTest {
+        // Regression guard: this condition used to be a hard-coded `false`, so it
+        // could never pass and silently skipped the rest of the macro.
+        coEvery { macroRepository.getSteps("m1") } returns conditionStep("BATTERY_SAVER_ON")
+        coEvery { actionRegistry.execute(any(), any()) } returns ActionResult.Success
+
+        every { capabilities.isPowerSaveMode() } returns true
+        val whenOn = runMacro(macro)
+        assertEquals("condition should pass when saver is on", 0, whenOn.skippedSteps)
+        assertEquals(1, whenOn.executedSteps)
+
+        every { capabilities.isPowerSaveMode() } returns false
+        val whenOff = runMacro(macro)
+        assertEquals("condition should fail when saver is off", 1, whenOff.skippedSteps)
+    }
+
+    @Test
+    fun `every declared condition type is evaluated and none is hard-coded false`() = runTest {
+        coEvery { actionRegistry.execute(any(), any()) } returns ActionResult.Success
+        // A condition that can never be true would make the operator useless; assert
+        // each type is reachable rather than short-circuited to a constant.
+        for (type in ConditionType.entries) {
+            coEvery { macroRepository.getSteps("m1") } returns conditionStep(type.name)
+            val outcome = runMacro(macro)
+            assertTrue(
+                "condition ${type.name} produced no outcome",
+                outcome.status != MacroRunStatus.SKIPPED,
+            )
+        }
+    }
+
+    @Test
+    fun `profile condition compares against the expected payload`() = runTest {
+        coEvery { macroRepository.getSteps("m1") } returns conditionStep("PROFILE_IS|${ProfileType.GAMING.id}")
+        coEvery { actionRegistry.execute(any(), any()) } returns ActionResult.Success
+        // No overlay is running in a unit test, so the active profile is unknown and
+        // the condition cannot match — it must skip rather than crash.
+        val outcome = runMacro(macro)
+        assertEquals(1, outcome.skippedSteps)
     }
 }

@@ -71,6 +71,17 @@ class DeviceCapabilities @Inject constructor(
         return pm.isIgnoringBatteryOptimizations(context.packageName)
     }
 
+    /**
+     * Whether the system is currently in battery-saver (power save) mode.
+     *
+     * Used by macro `BATTERY_SAVER_ON` conditions. Reading it needs no permission;
+     * it is a plain PowerManager query, not a battery-stats access.
+     */
+    fun isPowerSaveMode(): Boolean {
+        val pm = context.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager ?: return false
+        return pm.isPowerSaveMode
+    }
+
     fun accessState(id: AccessId): Boolean = when (id) {
         AccessId.OVERLAY -> hasOverlayPermission()
         AccessId.ACCESSIBILITY -> hasAccessibility()

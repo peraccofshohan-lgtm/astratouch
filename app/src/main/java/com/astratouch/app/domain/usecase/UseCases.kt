@@ -62,6 +62,7 @@ class BindGestureUseCase @Inject constructor(
 class RunMacroUseCase @Inject constructor(
     private val macroRepository: MacroRepository,
     private val actionRegistry: ActionRegistry,
+    private val capabilities: com.astratouch.app.service.action.DeviceCapabilities,
 ) {
     /**
      * @param depth recursion depth; macros may not trigger macros beyond [MAX_DEPTH]
@@ -166,7 +167,8 @@ class RunMacroUseCase @Inject constructor(
                 com.astratouch.app.service.overlay.OverlayController.isRunning()
             com.astratouch.app.domain.model.ConditionType.BUBBLE_VISIBLE ->
                 com.astratouch.app.service.overlay.OverlayController.instance?.state?.value?.bubbleVisible == true
-            com.astratouch.app.domain.model.ConditionType.BATTERY_SAVER_ON -> false
+            com.astratouch.app.domain.model.ConditionType.BATTERY_SAVER_ON ->
+                capabilities.isPowerSaveMode()
             com.astratouch.app.domain.model.ConditionType.WRITE_SETTINGS_GRANTED ->
                 actionRegistry.capabilityOf(ActionIds.BRIGHTNESS_UP) == CapabilityState.AVAILABLE
             com.astratouch.app.domain.model.ConditionType.PROFILE_IS ->

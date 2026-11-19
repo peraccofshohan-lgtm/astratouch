@@ -41,8 +41,8 @@ mechanism that enforces each one, and what data exists on your device.
 | Timers | Room `timers` | Until deleted or uninstalled |
 | User preferences (theme, haptics, defaults) | DataStore `astra_preferences` | Until cleared |
 | Bubble position, last profile | DataStore | Until cleared |
-| Screenshots | `cacheDir/screenshots` via `ScreenshotSaver` | Until you delete them or Android trims the cache |
-| Recordings | `filesDir/recordings` | Until you delete them |
+| Screenshots | `filesDir/captures` via `ScreenshotStore` | Until you delete them, or when you use Privacy Center → delete all data |
+| Recordings | `filesDir/recordings` | Until you delete them in the Screenshot studio, or when you use Privacy Center → delete all data |
 | Logs | None persisted — `Log.d` only in debug builds | — |
 
 Nothing is written to shared/external storage, so no other app can read it and no

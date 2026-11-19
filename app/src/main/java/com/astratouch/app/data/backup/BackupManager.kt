@@ -162,9 +162,15 @@ class BackupManager @Inject constructor(
             db.gestureDao().getAll().forEach { }
             db.radialConfigDao().getAll().forEach { db.radialConfigDao().deleteItemsFor(it.id) }
         }
-        // Capture files.
-        File(context.filesDir, "captures").deleteRecursively()
-        File(context.filesDir, "captures").mkdirs()
+        // Capture and recording files. Both must be removed: Privacy Center tells
+        // the user that screenshots *and* recordings are deleted, and leaving MP4s
+        // behind would make that statement false.
+        listOf("captures", "recordings").forEach { dir ->
+            File(context.filesDir, dir).deleteRecursively()
+            File(context.filesDir, dir).mkdirs()
+        }
+        // Clipboard history is kept in a separate file-based store in some builds;
+        // clear the DataStore-backed preferences last so nothing is re-persisted.
         preferencesStore.clearAll()
     }
 

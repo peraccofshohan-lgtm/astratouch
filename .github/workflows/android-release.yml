@@ -194,32 +194,57 @@ jobs:
         if: ${{ !inputs.dry_run }}
         id: verify
         run: |
-          set -euo pipefail
-          SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
-          BUILD_TOOLS=$(ls -d "$SDK"/build-tools/* 2>/dev/null | sort -V | tail -n 1)
-          [ -n "$BUILD_TOOLS" ] || { echo "::error::No Android build-tools available"; exit 1; }
-          APKSIGNER="$BUILD_TOOLS/apksigner"
-          AAPT2="$BUILD_TOOLS/aapt2"
+          set -uo pipefail
+          # Locate the tools rather than assuming an SDK layout; the runner's
+          # build-tools version is not fixed.
+          APKSIGNER=$(find /usr/local/lib/android "${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}" \
+            -type f -name apksigner 2>/dev/null | sort -V | tail -n 1 || true)
+          AAPT2=$(find /usr/local/lib/android "${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}" \
+            -type f -name aapt2 2>/dev/null | sort -V | tail -n 1 || true)
           APK="${{ steps.apk.outputs.path }}"
 
-          echo "== apksigner verify =="
-          if ! "$APKSIGNER" verify --verbose --print-certs "$APK" | tee signature.txt; then
-            echo "::error::apksigner verify FAILED — the APK is unsigned or its signature is invalid."
+          if [ -z "$APK" ] || [ ! -f "$APK" ]; then
+            echo "::error::No APK to verify"
+            exit 1
+          fi
+          echo "APK=$APK"
+          echo "APKSIGNER=$APKSIGNER"
+
+          # --- 1. Signature scheme and validity ----------------------------------
+          if [ -z "$APKSIGNER" ]; then
+            echo "::error::apksigner not found; cannot verify the signature"
+            exit 1
+          fi
+          "$APKSIGNER" verify --verbose --print-certs "$APK" > signature.txt 2>&1 || true
+          grep -E "Verifies|scheme" signature.txt || sed -n '1,40p' signature.txt
+
+          if ! grep -qE "Verified using v(2|3)(\.[0-9])? scheme .*: true" signature.txt; then
+            echo "::error::APK is not signed with a v2/v3 scheme"
             sed -n '1,40p' signature.txt
             exit 1
           fi
-          grep -q "Verified using v2 scheme (APK Signature Scheme v2): true" signature.txt \
-            || grep -q "Verified using v3 scheme (APK Signature Scheme v3): true" signature.txt \
-            || { echo "::error::APK is not signed with a v2/v3 scheme"; exit 1; }
 
-          # The signer must be our committed debug identity — not the ephemeral
-          # Android debug key some other toolchain may have injected.
-          CERT_SHA256=$(grep -m1 -oP "Signer #1 certificate SHA-256 digest: \K[0-9a-f]+" signature.txt || true)
+          # --- 2. Signer identity, read by a second, independent tool -----------
+          # keytool needs only a JDK and reads the v1/JAR signature, so the signer
+          # is confirmed by something other than apksigner's output format.
+          CERT_SHA256=""
+          if keytool -printcert -jarfile "$APK" > keytool.txt 2>&1; then
+            CERT_SHA256=$(sed -n 's/.*SHA256: *//p' keytool.txt | head -1 | tr -d ': \r' | tr 'A-Z' 'a-z')
+            echo "keytool signer: $CERT_SHA256"
+          else
+            echo "keytool could not read a JAR signature; falling back to apksigner"
+            sed -n '1,10p' keytool.txt
+          fi
+          if [ -z "$CERT_SHA256" ]; then
+            CERT_SHA256=$(sed -n 's/.*Signer #1 certificate SHA-256 digest: *//p' signature.txt \
+              | head -1 | tr -d ' \r')
+          fi
           if [ -z "$CERT_SHA256" ]; then
             echo "::error::Could not read the signing certificate digest"
             sed -n '1,40p' signature.txt
             exit 1
           fi
+
           EXPECTED_CERT="${{ steps.signing.outputs.expected_cert_sha256 }}"
           if [ "$CERT_SHA256" != "$EXPECTED_CERT" ]; then
             echo "::error::APK is signed by $CERT_SHA256 but the stable identity is $EXPECTED_CERT"
@@ -227,19 +252,28 @@ jobs:
           fi
           echo "Signer certificate matches the committed identity."
 
-          echo "== manifest =="
-          "$AAPT2" dump badging "$APK" | tee badging.txt
-          PKG=$(grep -oP "package: name='\K[^']+" badging.txt)
-          VNAME=$(grep -oP "versionName='\K[^']+" badging.txt | head -1)
-          VCODE=$(grep -oP "versionCode='\K[^']+" badging.txt | head -1)
-          MINSDK=$(grep -oP "sdkVersion:'\K[0-9]+" badging.txt)
-          TARGETSDK=$(grep -oP "targetSdkVersion:'\K[0-9]+" badging.txt)
+          # --- 3. Package metadata ----------------------------------------------
+          if [ -z "$AAPT2" ]; then
+            echo "::error::aapt2 not found; cannot verify package metadata"
+            exit 1
+          fi
+          "$AAPT2" dump badging "$APK" > badging.txt 2>&1 || true
+          grep -E "^package:|sdkVersion|targetSdkVersion" badging.txt || true
 
-          [ "$PKG" = "com.astratouch.app" ] || { echo "::error::Unexpected applicationId: $PKG"; exit 1; }
-          [ "$VNAME" = "${{ steps.version.outputs.version }}" ] || { echo "::error::versionName mismatch: $VNAME"; exit 1; }
-          [ "$VCODE" = "${{ steps.consistency.outputs.code }}" ] || { echo "::error::versionCode mismatch: $VCODE"; exit 1; }
-          [ "$MINSDK" = "29" ] || { echo "::error::minSdk mismatch: $MINSDK"; exit 1; }
-          [ "$TARGETSDK" = "36" ] || { echo "::error::targetSdk mismatch: $TARGETSDK"; exit 1; }
+          PKG=$(sed -n "s/^package: name='\([^']*\)'.*/\1/p" badging.txt | head -1)
+          VNAME=$(sed -n "s/.*versionName='\([^']*\)'.*/\1/p" badging.txt | head -1)
+          VCODE=$(sed -n "s/.*versionCode='\([^']*\)'.*/\1/p" badging.txt | head -1)
+          MINSDK=$(sed -n "s/^sdkVersion:'\([0-9]*\)'.*/\1/p" badging.txt | head -1)
+          TARGETSDK=$(sed -n "s/^targetSdkVersion:'\([0-9]*\)'.*/\1/p" badging.txt | head -1)
+
+          echo "package=$PKG versionName=$VNAME versionCode=$VCODE min=$MINSDK target=$TARGETSDK"
+
+          fail() { echo "::error::$1"; sed -n '1,10p' badging.txt; exit 1; }
+          [ "$PKG" = "com.astratouch.app" ] || fail "Unexpected applicationId: $PKG"
+          [ "$VNAME" = "${{ steps.version.outputs.version }}" ] || fail "versionName mismatch: $VNAME"
+          [ "$VCODE" = "${{ steps.consistency.outputs.code }}" ] || fail "versionCode mismatch: $VCODE"
+          [ "$MINSDK" = "29" ] || fail "minSdk mismatch: $MINSDK"
+          [ "$TARGETSDK" = "36" ] || fail "targetSdk mismatch: $TARGETSDK"
 
           {
             echo "package=$PKG"

@@ -23,7 +23,9 @@ Verified CI runs on branch `arena/51c0745e-astratouch`:
 | `44478519934` | Android Instrumentation | success, but **hollow** — no tests actually executed; discovered later by a new assertion step |
 | `44479827314` | Android Instrumentation | failure — the new guard caught a duplicate-DataStore crash and two test-authoring bugs |
 | `44481063498` | Android Instrumentation | **success with tests actually executed** — API 29 (432 s), API 33 (454 s), API 36 (480 s); results asserted non-empty by the new guard |
-| `44482746370` / `44482740630` / `44482746373` | Instrumentation, CI, PR | all success on the final source commit |
+| `44482746370` / `44482740630` / `44482746373` | Instrumentation, CI, PR | all success |
+| `44485199536` | Android Instrumentation | failure — cold-cache `Could not resolve` on two API levels while the third passed on the same commit; fixed by serialising the matrix and retrying only on network failures |
+| `44486247931` / `44486247984` / `44486236809` | Instrumentation, PR, CI | **all green on the final commit** — API 29, 33 and 36 each executed and passed their tests |
 | `44483918522` | Android Release (tag `v1.0.0`) | expected failure at the secrets gate: gates 1, 2, 4 and 5 passed, every publish step skipped |
 | `44478520365` | Android PR | success — PR verification on PR #1 |
 
@@ -179,7 +181,7 @@ Verified CI runs on branch `arena/51c0745e-astratouch`:
 | Migration test | ✅ TESTED | Self-contained v1 schema; green on API 29/33/36 in run `44481063498`. Writing it exposed that `MIGRATION_1_2` was not idempotent (`duplicate column name` on re-run), which is now fixed |
 | Navigation smoke test | ✅ TESTED | `NavigationInstrumentedTest` — real Hilt graph on a device; green on API 29/33/36 in run `44481063498` |
 | Calculator UI test | ✅ TESTED | `CalculatorInstrumentedTest` — four cases (2+3=5, clear, operator precedence, divide-by-zero) asserting on tagged nodes; green on API 29/33/36 in run `44481063498` |
-| Emulator matrix API 29/33/36 | ✅ TESTED | Run `44481063498`: API 29, 33 and 36 all passed with results verified non-empty. Getting here found four real problems: run `44478519934` was a **hollow pass** (zero tests executed); run `44479827314` then exposed a duplicate-DataStore crash, ambiguous calculator text matching, and a Hilt `hiltViewModel()` failure inside `HiltTestActivity`. All are fixed, and the workflow now fails if no test XML is produced |
+| Emulator matrix API 29/33/36 | ✅ TESTED | Final state: run `44486247931`, all three API levels green, results asserted non-empty. Getting here found five real problems: run `44478519934` was a **hollow pass** (zero tests executed); `44479827314` exposed a duplicate-DataStore crash, ambiguous calculator text matching and a Hilt `hiltViewModel()` failure in `HiltTestActivity`; `44485199536` showed correlated cold-cache failures when three jobs resolved dependencies simultaneously. All are fixed, and the workflow now fails if no test XML is produced |
 | Lint (`lintDebug`) | ✅ TESTED | Passed in run `44474918008` |
 | Lint (`lintRelease`) | ✅ TESTED | Passed inside the release pipeline, run `44483918522`, step 9 — before the secrets gate, so it is verified without any signing material |
 | Physical device testing | ➖ N/A | No device available; documented as a gap in KNOWN_LIMITATIONS |

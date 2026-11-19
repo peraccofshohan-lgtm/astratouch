@@ -16,19 +16,16 @@ jobs:
   verify:
     name: "Verify pull request"
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "21"
-
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -37,10 +34,19 @@ jobs:
         uses: gradle/actions/wrapper-validation@v4
 
       - name: Assemble and unit test
-        run: ./gradlew assembleDebug testDebugUnitTest --stacktrace
+        run: |
+          mkdir -p build-logs
+          set -o pipefail
+          ./gradlew :app:assembleDebug :app:testDebugUnitTest --no-daemon --console=plain 2>&1 | tee build-logs/pr.log
 
       - name: Lint
-        run: ./gradlew lintDebug --stacktrace
+        run: |
+          set -o pipefail
+          ./gradlew :app:lintDebug --no-daemon --console=plain 2>&1 | tee build-logs/pr-lint.log
+
+      - name: Report failures as annotations
+        if: failure()
+        run: bash .github/scripts/report-failure.sh build-logs
 
       - name: Upload reports
         if: always()
@@ -50,21 +56,6 @@ jobs:
           path: |
             app/build/reports/**
             app/build/test-results/**
+            build-logs/**
           if-no-files-found: warn
           retention-days: 7
-
-      - name: Comment summary
-        if: always()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const status = '${{ job.status }}';
-            const body = `### AstraTouch PR verification: ${status}\n\n` +
-              `Unit tests, lint and the debug build ran on this commit.\n\n` +
-              `Artifacts: see the *pr-test-reports* artifact on this run.`;
-            await github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body,
-            });

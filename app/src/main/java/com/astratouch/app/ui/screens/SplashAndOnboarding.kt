@@ -63,6 +63,7 @@ import com.astratouch.app.ui.components.StatusPill
 import com.astratouch.app.ui.theme.LocalAstraColors
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -166,7 +167,7 @@ class SplashViewModel @Inject constructor(
         viewModelScope.launch {
             // Warm the preference flow so the first frame of the dashboard is
             // rendered with real data instead of a flash of defaults.
-            kotlinx.coroutines.flow.first(preferencesStore.preferences)
+            preferencesStore.preferences.first()
             delay(120)
             _ready.value = true
         }

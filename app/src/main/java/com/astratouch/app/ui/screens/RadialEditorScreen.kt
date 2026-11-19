@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -468,7 +469,7 @@ private fun actionName(viewModel: RadialEditorViewModel, id: String): String =
     viewModel.allActions.firstOrNull { it.id == id }?.name ?: id
 
 private fun Modifier.offsetDp(x: Float, y: Float): Modifier =
-    this.then(androidx.compose.foundation.layout.offset(x = x.dp, y = y.dp))
+    this.offset(x = x.dp, y = y.dp)
 
 @Composable
 private fun SliderRowSimple(

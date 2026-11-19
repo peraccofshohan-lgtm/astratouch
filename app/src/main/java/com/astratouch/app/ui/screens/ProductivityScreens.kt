@@ -585,7 +585,9 @@ class CalculatorViewModel @Inject constructor() : ViewModel() {
                 val formatted = format(value)
                 _result.value = formatted
                 _history.value = (listOf(expr to formatted) + _history.value).take(12)
-                _expression.value = formatted
+                // Keep the worked expression visible; the value lives in `result`.
+                // Replacing the display with the answer alone made it impossible to
+                // see what had been calculated, and made the UI harder to test.
             },
             onFailure = { _result.value = "Error: ${it.message ?: "invalid expression"}" },
         )

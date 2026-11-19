@@ -7,6 +7,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.astratouch.app.ui.screens.CalculatorScreen
+import com.astratouch.app.ui.screens.CalculatorViewModel
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import org.junit.Before
@@ -26,6 +27,7 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class CalculatorInstrumentedTest {
 
+
     @get:Rule(order = 0)
     val hiltRule = HiltAndroidRule(this)
 
@@ -40,20 +42,36 @@ class CalculatorInstrumentedTest {
         composeRule.waitForIdle()
     }
 
+    /**
+     * Passes an explicit ViewModel rather than relying on `hiltViewModel()`.
+     *
+     * `hiltViewModel()` needs a `ViewModelStoreOwner` that is also a Hilt
+     * `ViewModelFactory` host; inside `HiltTestActivity` the default activity
+     * factory is not Hilt-backed, so resolving it there throws. Supplying the
+     * (injectable, dependency-free) ViewModel keeps the test focused on the
+     * composable's behaviour instead of on Hilt's view-model plumbing.
+     */
+    private fun setCalculator() {
+        val vm = CalculatorViewModel()
+        composeRule.setContent { CalculatorScreen(onBack = {}, viewModel = vm) }
+    }
+
     @Test
     fun twoPlusThreeEqualsFive() {
-        composeRule.setContent { CalculatorScreen(onBack = {}) }
+        setCalculator()
 
         press("2", "+", "3")
         composeRule.onNodeWithTag("calc_expression").assertTextEquals("2+3")
 
         press("=")
+        // The entered expression stays visible; the answer appears beneath it.
+        composeRule.onNodeWithTag("calc_expression").assertTextEquals("2+3")
         composeRule.onNodeWithTag("calc_result").assertIsDisplayed().assertTextEquals("5")
     }
 
     @Test
     fun clearResetsTheDisplay() {
-        composeRule.setContent { CalculatorScreen(onBack = {}) }
+        setCalculator()
 
         press("9")
         composeRule.onNodeWithTag("calc_expression").assertTextEquals("9")
@@ -64,7 +82,7 @@ class CalculatorInstrumentedTest {
 
     @Test
     fun operatorPrecedenceIsRespected() {
-        composeRule.setContent { CalculatorScreen(onBack = {}) }
+        setCalculator()
 
         press("2", "+", "3", "×", "4", "=")
         composeRule.onNodeWithTag("calc_result").assertTextEquals("14")
@@ -72,7 +90,7 @@ class CalculatorInstrumentedTest {
 
     @Test
     fun divisionByZeroShowsAnError() {
-        composeRule.setContent { CalculatorScreen(onBack = {}) }
+        setCalculator()
 
         press("5", "÷", "0", "=")
         // The UI must explain the failure rather than showing "Infinity" or crashing.

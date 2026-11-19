@@ -20,7 +20,8 @@ Verified CI runs on branch `arena/51c0745e-astratouch`:
 | --- | --- | --- |
 | `44474918008` | Android CI | success — `Unit tests`, `Lint`, `Build debug APK`; artifacts `astratouch-debug-apk` (18.5 MB) and `astratouch-test-reports` |
 | `44476967768` | Android CI | success — after the migration rework |
-| `44478519934` | Android Instrumentation | success — API **29**, **33** and **36** emulator jobs (324 s / 455 s / 352 s) |
+| `44478519934` | Android Instrumentation | success, but **hollow** — no tests actually executed; discovered later by a new assertion step |
+| `44479827314` | Android Instrumentation | failure — the new guard caught a duplicate-DataStore crash and two test-authoring bugs |
 | `44478520365` | Android PR | success — PR verification on PR #1 |
 
 > **Verification honesty statement.** No local Android build is possible in the
@@ -172,10 +173,10 @@ Verified CI runs on branch `arena/51c0745e-astratouch`:
 | --- | --- | --- |
 | JVM unit tests | ✅ TESTED | 9 files / 79 test cases (+6 instrumentation), all passing in run `44474918008` |
 | Room database tests (API 29/33/34) | ✅ TESTED | Robolectric `@Config` matrix, JVM |
-| Migration test | ✅ TESTED | Self-contained v1 schema; ran on API 29, 33 and 36 in run `44478519934`. Migration made idempotent after the test exposed the `duplicate column name` re-run bug |
-| Navigation smoke test | ✅ TESTED | `NavigationInstrumentedTest` — real Hilt graph on a device |
-| Calculator UI test | ✅ TESTED | `CalculatorInstrumentedTest` — types `2 + 3 =` through Compose and asserts `5` |
-| Emulator matrix API 29/33/36 | ✅ TESTED | Run `44478519934` on PR #1: all three API levels passed (324 s, 455 s, 352 s). The job now also fails if zero tests execute, so a hollow pass is impossible |
+| Migration test | ✅ TESTED | Self-contained v1 schema. (Earlier claim of an emulator pass was wrong — see the note below.) The test itself exposed that `MIGRATION_1_2` was not idempotent; that is now fixed |
+| Navigation smoke test | 🟡 MANUAL | `NavigationInstrumentedTest` — real Hilt graph on a device. Not yet observed green (the emulator jobs have not completed a full run) |
+| Calculator UI test | 🟡 MANUAL | `CalculatorInstrumentedTest` — four cases (2+3, clear, precedence, divide-by-zero) asserting on tagged nodes. It previously failed for three distinct reasons and is **not yet observed green**; see the emulator row above |
+| Emulator matrix API 29/33/36 | ⛔ BLOCKED | Run `44478519934` reported success but had executed **zero** tests — a hollow pass the workflow did not detect. Run `44479827314` (after adding a "fail if zero tests" guard) revealed three genuine failures, now fixed: a duplicate-DataStore crash, ambiguous text matching in the calculator test, and a Hilt `hiltViewModel()` resolution failure inside `HiltTestActivity`. A re-run is pending |
 | Lint (`lintDebug`) | ✅ TESTED | Passed in run `44474918008` |
 | Lint (`lintRelease`) | ⛔ BLOCKED | Only runs inside the release workflow; needs signing secrets |
 | Physical device testing | ➖ N/A | No device available; documented as a gap in KNOWN_LIMITATIONS |
@@ -216,7 +217,7 @@ Verified CI runs on branch `arena/51c0745e-astratouch`:
 | Item | Status | Notes |
 | --- | --- | --- |
 | CI (test + lint + debug APK) | ✅ TESTED | Run `44474918008` success |
-| PR verification workflow | ✅ TESTED | `android-pr.yml` green on PR #1 (run `44478520365`) |
+| PR verification workflow | ✅ TESTED | `android-pr.yml` green on PR #1 (runs `44478520365`, `44479827309`) |
 | Self-hosted signing gate | ✅ BUILT | 4 secrets required; no debug-key fallback |
 | Signature verification gate | ✅ BUILT | Rejects `CN=Android Debug`, requires v2+v3 |
 | Badging assertions | ✅ BUILT | package / versionName / versionCode / minSdk / targetSdk |

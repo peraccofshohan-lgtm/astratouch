@@ -2,7 +2,6 @@ package com.astratouch.app.service.overlay
 
 import android.content.Context
 import android.content.res.Configuration
-import android.graphics.Rect
 import android.util.DisplayMetrics
 import android.view.WindowManager
 import com.astratouch.app.domain.model.DockSide
@@ -131,6 +130,15 @@ object OverlayGeometry {
         return cx to cy
     }
 
+    /** Axis-aligned rectangle used for collision maths (no Android dependency). */
+    data class OverlayRect(val left: Int, val top: Int, val right: Int, val bottom: Int) {
+        val width: Int get() = right - left
+        val height: Int get() = bottom - top
+
+        fun intersects(other: OverlayRect): Boolean =
+            left < other.right && other.left < right && top < other.bottom && other.top < bottom
+    }
+
     /** True when two touch rects would collide (used for edge-panel avoidance). */
-    fun collides(a: Rect, b: Rect): Boolean = Rect.intersects(a, b)
+    fun collides(a: OverlayRect, b: OverlayRect): Boolean = a.intersects(b)
 }

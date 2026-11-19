@@ -92,9 +92,9 @@ class OverlayGeometryTest {
 
     @Test
     fun `collision detection reports overlapping rects`() {
-        val a = android.graphics.Rect(0, 0, 10, 10)
-        val b = android.graphics.Rect(5, 5, 15, 15)
-        val c = android.graphics.Rect(20, 20, 30, 30)
+        val a = OverlayGeometry.OverlayRect(0, 0, 10, 10)
+        val b = OverlayGeometry.OverlayRect(5, 5, 15, 15)
+        val c = OverlayGeometry.OverlayRect(20, 20, 30, 30)
         assertTrue(OverlayGeometry.collides(a, b))
         assertTrue(!OverlayGeometry.collides(a, c))
     }

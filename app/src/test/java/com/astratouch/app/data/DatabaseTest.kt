@@ -28,7 +28,7 @@ import org.robolectric.annotation.Config
  * Runs under Robolectric so it executes in the regular JVM unit-test task.
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [29, 33, 36])
+@Config(sdk = [29, 33, 34])
 class DatabaseTest {
 
     private lateinit var db: AstraDatabase

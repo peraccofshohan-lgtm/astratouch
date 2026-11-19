@@ -54,7 +54,7 @@ class SensitiveContentFilterTest {
 
     @Test
     fun `token blob heuristic catches random secrets`() {
-        assertTrue(SensitiveContentFilter.isSensitive("aB3!xY9#kL2@mN5\$pQ8"))
+        assertTrue(SensitiveContentFilter.isSensitive("aB3!xY9#kL2@mN5\$pQ8rT4%wZ1&vU6"))
     }
 
     @Test

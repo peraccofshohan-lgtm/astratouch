@@ -1,4 +1,4 @@
-package com.astratouch.app.data
+package com.astratouch.app
 
 import androidx.room.testing.MigrationTestHelper
 import androidx.test.platform.app.InstrumentationRegistry
@@ -7,9 +7,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
-import org.robolectric.annotation.Config
 
 /**
  * Verifies that the 1 → 2 migration really runs against a v1 schema and leaves a
@@ -18,8 +17,7 @@ import org.robolectric.annotation.Config
  * The v1 schema is written by hand here (it is the historical shape) so this test
  * stays valid even as the exported schema files evolve.
  */
-@RunWith(RobolectricTestRunner::class)
-@Config(sdk = [29, 34])
+@RunWith(AndroidJUnit4::class)
 class MigrationTest {
 
     @get:Rule

@@ -8,6 +8,7 @@ import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Book
+import androidx.compose.material.icons.filled.CallSplit
 import androidx.compose.material.icons.filled.BrightnessHigh
 import androidx.compose.material.icons.filled.BrightnessLow
 import androidx.compose.material.icons.filled.Calculate
@@ -23,12 +24,14 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FlashlightOn
 import androidx.compose.material.icons.filled.Flight
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Gesture
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Loop
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Pause
@@ -122,6 +125,9 @@ object IconRegistry {
         "ic_game" to Icons.Filled.SportsEsports,
         "ic_media" to Icons.Filled.PlayArrow,
         "ic_bolt" to Icons.Filled.Bolt,
+        "ic_gesture" to Icons.Filled.Gesture,
+        "ic_split" to Icons.Filled.CallSplit,
+        "ic_loop" to Icons.Filled.Loop,
     )
 
     fun get(key: String): ImageVector = icons[key] ?: Icons.Filled.Star

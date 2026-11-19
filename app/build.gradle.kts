@@ -13,8 +13,8 @@ plugins {
 fun prop(key: String, fallback: String): String =
     (project.findProperty(key) as String?) ?: fallback
 
-val astraVersionName = prop("astratouch.versionName", "1.0.0")
-val astraVersionCode = prop("astratouch.versionCode", "10000").toInt()
+val astraVersionName = prop("astratouch.versionName", "1.0.1")
+val astraVersionCode = prop("astratouch.versionCode", "10001").toInt()
 val astraApplicationId = prop("astratouch.applicationId", "com.astratouch.app")
 val astraMinSdk = prop("astratouch.minSdk", "29").toInt()
 val astraCompileSdk = prop("astratouch.compileSdk", "36").toInt()

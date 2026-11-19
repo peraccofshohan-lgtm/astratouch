@@ -54,7 +54,7 @@ Verified CI runs on branch `arena/51c0745e-astratouch`:
 | --- | --- | --- |
 | Gradle 8.13 wrapper + version catalog | ✅ TESTED | Wrapper validated in CI |
 | AGP 8.11.1 / Kotlin 2.2.21 / KSP / Hilt / Room | ✅ TESTED | Compiles in CI |
-| Package `com.astratouch.app`, versionName 1.0.0, versionCode 10000 | ✅ TESTED | Asserted by release workflow badging gate |
+| Package `com.astratouch.app`, versionName 1.0.1, versionCode 10001 | ✅ TESTED | Asserted by release workflow badging gate |
 | min 29 / compile + target 36 | ✅ TESTED | `BuildConfig` fields + release gate |
 | Manifest with no `INTERNET`, `allowBackup=false` | ✅ BUILT | Reviewable in `AndroidManifest.xml`; asserted by docs |
 | Room database v2 + exported schema | ✅ TESTED | `DatabaseTest`, `MigrationTest` |

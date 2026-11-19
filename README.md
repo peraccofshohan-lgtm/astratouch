@@ -7,7 +7,7 @@ that opens a radial command center, drives real system actions, runs choreograph
 to your context through profiles — entirely offline.
 
 - **Package:** `com.astratouch.app`
-- **Version:** `1.0.0` (versionCode `10000`)
+- **Version:** `1.0.1` (versionCode `10001`)
 - **Android 10 → Android 16** (`minSdk 29`, `targetSdk 36`, `compileSdk 36`)
 - **Kotlin + Jetpack Compose + Material 3**
 - **No ads. No analytics. No account. No `INTERNET` permission.**

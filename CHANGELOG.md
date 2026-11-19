@@ -4,6 +4,52 @@ All notable changes to AstraTouch are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/) and
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.0.1] — 2026-11-19
+
+A review-driven correctness release. Nine defects found by reading the code after
+v1.0.0 was tagged; three of them were features documented as working that did not.
+
+### Fixed
+
+- **Sharing screenshots and recordings always failed.** `file_paths.xml` did not
+  declare `files/captures` or `files/recordings`, so `FileProvider.getUriForFile`
+  threw for every share action.
+- **Privacy Center's "delete all data" left recordings behind.** It removed only
+  `files/captures`; MP4s survived a wipe the UI described as complete.
+- **The bubble never returned after a reboot on Android 12+.** The receiver started
+  a `specialUse` foreground service from `BOOT_COMPLETED`, which Android forbids and
+  which throws `ForegroundServiceStartNotAllowedException`. It now posts a
+  tap-to-restore notification and starts the service from the foreground.
+- **The `BATTERY_SAVER_ON` macro condition was hard-coded to `false`** and could
+  never pass. Now reads `PowerManager.isPowerSaveMode`.
+- **`NESTED` and `MULTI_PAGE` radial layouts were aliases of `FULL_CIRCLE`** —
+  four of the eight offered layouts drew identically. `NESTED` is now two
+  concentric rings; `MULTI_PAGE` leaves a pager gutter.
+- **Gradle could silently produce an unsigned release APK.** A new
+  `verifyReleaseSigning` task, driven by `ASTRA_REQUIRE_SIGNING=1`, fails the build
+  instead of falling through to an unsigned artifact.
+- **The signature gate did not assert `apksigner` success**, reporting a vague grep
+  miss for an unsigned APK. It now fails explicitly.
+- **`scripts/setup-signing.sh` required a TTY** and could not run headless. Added
+  `--non-interactive` and `--print-values`.
+- Dashboard start now surfaces an OEM block as a message rather than crashing.
+
+### Added
+
+- **Recordings are manageable**: list, play, share and delete from the Screenshot
+  studio, with file size and count.
+- The release workflow records and publishes the **signer certificate SHA-256** in
+  `release-metadata.json` and the release notes, so a key change is detectable.
+- `docs/PR1_REVIEW.md` — the full review findings.
+- `docs/SIGNING_HANDOVER.md` — exact, copy-pasteable secret setup instructions.
+- Six regression tests: battery-saver condition, all-conditions-evaluated,
+  profile-condition payload, nested-ring geometry, no-duplicate-layout geometry,
+  multi-page gutter.
+
+### Changed
+
+- Version `1.0.1` / `versionCode 10001`.
+
 ## [1.0.0] — 2026-11-19
 
 First public release. AstraTouch is a complete, offline, native Android floating

@@ -30,12 +30,11 @@ for f in "${files[@]}"; do
     | grep -v "^w: " \
     | head -15 | while IFS= read -r line; do emit "$name" "$line"; done
 
-  # 3. Gradle task-level failures.
-  grep -E "Execution failed for task|What went wrong|> Task .* FAILED|Caused by:" "$f" \
-    | head -8 | while IFS= read -r line; do emit "$name" "$line"; done
+  # 3. Gradle task-level failures, with the lines that follow the reason.
+  grep -A 12 -E "What went wrong" "$f" | head -20 | while IFS= read -r line; do emit "$name" "$line"; done
+  grep -E "Execution failed for task|> Task .* FAILED|Caused by:" "$f" \
+    | head -6 | while IFS= read -r line; do emit "$name" "$line"; done
 
-  # 4. Fallback: tail of the log when nothing matched above.
-  if ! grep -qE "^e: |FAILED|What went wrong|error:" "$f"; then
-    tail -n 12 "$f" | while IFS= read -r line; do emit "$name" "$line"; done
-  fi
+  # 4. Always attach the tail so nothing is invisible when the patterns miss.
+  tail -n 25 "$f" | while IFS= read -r line; do emit "$name" "$line"; done
 done

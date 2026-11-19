@@ -74,6 +74,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.io.File
 import javax.inject.Inject
@@ -408,14 +409,14 @@ class ExperimentalLabViewModel @Inject constructor(
     fun setOcr(value: Boolean) = viewModelScope.launch { preferencesStore.setExperimentalOcr(value) }
 }
 
-private fun kotlinx.coroutines.flow.Flow<com.astratouch.app.domain.model.AppPreferences>.stateInSafe(
+internal fun kotlinx.coroutines.flow.Flow<com.astratouch.app.domain.model.AppPreferences>.stateInSafe(
     scope: kotlinx.coroutines.CoroutineScope,
-) = kotlinx.coroutines.flow.stateIn(
-    this,
-    scope,
-    kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5_000),
-    com.astratouch.app.domain.model.AppPreferences(),
-)
+): kotlinx.coroutines.flow.StateFlow<com.astratouch.app.domain.model.AppPreferences> =
+    this.stateIn(
+        scope,
+        kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5_000),
+        com.astratouch.app.domain.model.AppPreferences(),
+    )
 
 @Composable
 fun ExperimentalLabScreen(

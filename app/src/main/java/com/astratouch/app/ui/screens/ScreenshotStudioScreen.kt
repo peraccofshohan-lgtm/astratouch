@@ -347,7 +347,7 @@ private fun ImageEditorDialog(
                                     onDragStart = { offset -> current = mutableListOf(offset) },
                                     onDrag = { change, _ ->
                                         change.consume()
-                                        current = current + change.position
+                                        current.add(change.position)
                                         strokes = strokes + listOf(current.toList())
                                     },
                                 )

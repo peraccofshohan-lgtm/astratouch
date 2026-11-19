@@ -468,7 +468,7 @@ private fun actionName(viewModel: RadialEditorViewModel, id: String): String =
     viewModel.allActions.firstOrNull { it.id == id }?.name ?: id
 
 private fun Modifier.offsetDp(x: Float, y: Float): Modifier =
-    this.then(androidx.compose.foundation.layout.offset(x.dp, y.dp))
+    this.then(androidx.compose.foundation.layout.offset(x = x.dp, y = y.dp))
 
 @Composable
 private fun SliderRowSimple(

@@ -91,6 +91,7 @@ class ScreenCaptureService : Service() {
             recorder = mediaRecorder
 
             val mediaProjection = manager.getMediaProjection(resultCode, data)
+                ?: throw IllegalStateException("MediaProjection consent was not granted")
             projectionCallback = object : MediaProjection.Callback() {
                 override fun onStop() {
                     stopRecording()

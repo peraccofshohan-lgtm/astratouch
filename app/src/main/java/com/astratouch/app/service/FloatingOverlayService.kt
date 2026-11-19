@@ -347,7 +347,7 @@ class FloatingOverlayService : androidx.lifecycle.LifecycleService(), OverlayCon
         when (gesture) {
             GestureType.SINGLE_TAP -> {
                 val mapping = gesturesState.value.firstOrNull { it.gesture == GestureType.SINGLE_TAP }
-                if (mapping?.actionId == com.astratouch.app.domain.model.ActionIds.RADIAL_MENU_OPEN) {
+                if (mapping?.actionId == com.astratouch.app.domain.model.ActionIds.OPEN_RADIAL_MENU) {
                     toggleMenu()
                 } else if (mapping != null) {
                     lifecycleScope.launch { executeAction(mapping.actionId, null) }

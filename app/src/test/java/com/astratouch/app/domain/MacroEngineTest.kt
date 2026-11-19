@@ -148,9 +148,10 @@ class MacroEngineTest {
     fun `save use case normalises ids and ordering`() = runTest {
         val repo = mockk<MacroRepository>(relaxed = true)
         val saveMacro = SaveMacroUseCase(repo)
-        val capturedMacro = slot<Macro>()
-        val capturedSteps = slot<List<MacroStep>>()
-        coEvery { repo.saveMacro(capturedMacro.capture(), capturedSteps.capture()) } returns Unit
+
+        val savedMacro = slot<Macro>()
+        val savedSteps = slot<List<MacroStep>>()
+        coEvery { repo.saveMacro(capture(savedMacro), capture(savedSteps)) } returns Unit
 
         val result = saveMacro(
             Macro(id = "", name = "Fresh"),
@@ -161,9 +162,9 @@ class MacroEngineTest {
         )
 
         assertTrue(result.isSuccess)
-        assertTrue(capturedMacro.captured.id.startsWith("macro-"))
-        assertEquals(listOf(0, 1), capturedSteps.captured.map { it.order })
-        assertEquals(RunMacroUseCase.MAX_DELAY_MS, capturedSteps.captured[0].delayMs)
+        assertTrue(savedMacro.captured.id.startsWith("macro-"))
+        assertEquals(listOf(0, 1), savedSteps.captured.map { it.order })
+        assertEquals(RunMacroUseCase.MAX_DELAY_MS, savedSteps.captured[0].delayMs)
     }
 
     @Test

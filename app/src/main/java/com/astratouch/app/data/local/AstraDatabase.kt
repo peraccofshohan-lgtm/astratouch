@@ -92,10 +92,27 @@ abstract class AstraDatabase : RoomDatabase() {
                         "`ends_at_epoch_ms` INTEGER NOT NULL, " +
                         "`ringtone_requested` INTEGER NOT NULL)",
                 )
-                db.execSQL("ALTER TABLE `recent_actions` ADD COLUMN `use_count` INTEGER NOT NULL DEFAULT 1")
-                db.execSQL("ALTER TABLE `favorite_apps` ADD COLUMN `group_name` TEXT NOT NULL DEFAULT ''")
+                // ALTER TABLE has no IF NOT EXISTS in SQLite, so guard each column
+                // explicitly. That makes the whole migration safe to re-run after an
+                // interrupted upgrade instead of failing with "duplicate column".
+                if (!db.hasColumn("recent_actions", "use_count")) {
+                    db.execSQL("ALTER TABLE `recent_actions` ADD COLUMN `use_count` INTEGER NOT NULL DEFAULT 1")
+                }
+                if (!db.hasColumn("favorite_apps", "group_name")) {
+                    db.execSQL("ALTER TABLE `favorite_apps` ADD COLUMN `group_name` TEXT NOT NULL DEFAULT ''")
+                }
             }
         }
+
+        private fun SupportSQLiteDatabase.hasColumn(table: String, column: String): Boolean =
+            query("PRAGMA table_info(`$table`)").use { cursor ->
+                val nameIndex = cursor.getColumnIndex("name")
+                if (nameIndex < 0) return@use false
+                while (cursor.moveToNext()) {
+                    if (cursor.getString(nameIndex) == column) return@use true
+                }
+                false
+            }
 
         val ALL_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2)
 

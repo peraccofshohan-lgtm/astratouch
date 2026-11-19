@@ -5,10 +5,32 @@ remaining blocker is that **the four signing secrets are not in the repository**
 and the token this work was done with is refused by GitHub's secrets API:
 
 ```
-GET  /repos/peraccofshohan-lgtm/astratouch/actions/secrets            → 403
-GET  /repos/peraccofshohan-lgtm/astratouch/actions/secrets/public-key → 403
-POST /repos/peraccofshohan-lgtm/astratouch/actions/workflows/{id}/dispatches → 403
+GET  /repos/…/actions/secrets             → 403 Resource not accessible by integration
+GET  /repos/…/actions/secrets/public-key  → 403
+POST /repos/…/actions/workflows/{id}/dispatches → 403
 ```
+
+GitHub states the required permission explicitly on the response:
+
+```
+x-accepted-github-permissions: secrets=read
+x-oauth-scopes:
+```
+
+The token carries no `secrets` permission at all. This is a property of the GitHub
+App that issued it, not something a repository admin can change from inside the
+repository. Attempting `gh secret set` fails with the same 403.
+
+Everything else about the release is verified working: pushing tag `v1.0.1`
+produced run **`44532549544`**, which passed gates 1, 2, 4 and 5 (tag format,
+version consistency, 86 unit tests, `lintRelease`) and then stopped at the secrets
+gate with:
+
+> Release signing secrets are missing: ANDROID_KEYSTORE_BASE64
+> ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD.
+> See docs/RELEASE_SIGNING.md. Refusing to publish an unsigned APK.
+
+So the moment the four secrets exist, that same tag will produce a signed APK.
 
 You must do this once. Two options; pick either.
 

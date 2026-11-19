@@ -27,6 +27,10 @@ Verified CI runs on branch `arena/51c0745e-astratouch`:
 | `44485199536` | Android Instrumentation | failure — cold-cache `Could not resolve` on two API levels while the third passed on the same commit; fixed by serialising the matrix and retrying only on network failures |
 | `44486247931` / `44486247984` / `44486236809` | Instrumentation, PR, CI | **all green on the final commit** — API 29, 33 and 36 each executed and passed their tests |
 | `44483918522` | Android Release (tag `v1.0.0`) | expected failure at the secrets gate: gates 1, 2, 4 and 5 passed, every publish step skipped |
+| `44532392929` | Android Release (tag `v1.0.1-test`) | gate 1 correctly rejected a non-semver tag |
+| `44532549544` | Android Release (**tag `v1.0.1`**) | gates 1, 2, 4, 5 pass on the release version (86 unit tests, `lintRelease`); stops at gate 3 naming exactly the four missing secrets |
+| `44528266339` | Android Instrumentation | green on API 29, 33, 36 **with the review fixes applied** |
+| `44528266252` / `44528257204` | PR / CI | green on the reviewed source |
 | `44478520365` | Android PR | success — PR verification on PR #1 |
 
 > **Verification honesty statement.** No local Android build is possible in the

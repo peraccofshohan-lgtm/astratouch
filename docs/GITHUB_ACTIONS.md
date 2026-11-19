@@ -55,14 +55,39 @@ Matrix:
 | 33 | `google_apis` | POST_NOTIFICATIONS era |
 | 36 | `google_apis` | Current target |
 
+The matrix runs with `max-parallel: 1`. That is deliberate: a cold Gradle
+dependency graph downloads ~700 MB from Google's Maven mirror, and three
+simultaneous cold jobs intermittently fail together with `Could not resolve`
+errors (observed on run `44485199536`, while the third API level passed on the
+same commit). Serialising the matrix means only the first level pays for a cold
+graph and the rest restore the cache it saves. `fail-fast: false` is kept so one
+API failure never hides the others.
+
+Before the emulator boots, a **warm-up** step runs `assembleDebugAndroidTest` up to
+five times with backoff (0/30/60/120/120 s). It only retries when the log shows a
+network-level resolution failure; a real compile error stops the job immediately
+with the `e: file:///…` lines extracted, so a genuine breakage is never masked as
+"flaky".
+
 Steps enable KVM (`99-kvm4all.rules` + `udevadm trigger`), then run
 `reactivecircus/android-emulator-runner@v2` with
 `-no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none`
 and execute `:app:connectedDebugAndroidTest`. Reports and logs are uploaded per API
 level with `if: always()`.
 
-The job is `fail-fast: false` so one API failure does not hide the others, and has
-a 90-minute timeout because a cold emulator boot is slow.
+The job has a 90-minute timeout because a cold emulator boot is slow.
+
+After the tests, an **"Assert tests actually executed"** step parses the JUnit XML
+and:
+
+- fails if no result XML was produced at all,
+- fails if the XML contains zero tests,
+- fails if any failure/error count is non-zero,
+- writes a per-API `| Tests | Failures | Errors | Skipped |` table to the step
+  summary.
+
+That step exists because run `44478519934` reported green while having executed no
+tests — the exact hollow pass a CI badge is supposed to prevent.
 
 ## `android-release.yml`
 

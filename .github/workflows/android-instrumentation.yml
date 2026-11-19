@@ -21,6 +21,11 @@ jobs:
     timeout-minutes: 90
     strategy:
       fail-fast: false
+      # Dependency resolution intermittently 5xxs against Google's Maven mirror.
+      # Running the API levels one at a time means only the first job pays for a
+      # cold dependency graph; the rest restore the cache it saves, which removes
+      # the correlated failure mode where all three cold jobs fail together.
+      max-parallel: 1
       matrix:
         include:
           - api: 29
@@ -54,15 +59,29 @@ jobs:
       # build failure.
       - name: Warm the Gradle dependency cache
         run: |
-          for attempt in 1 2 3; do
-            if ./gradlew :app:assembleDebugAndroidTest --no-daemon --console=plain; then
+          set -o pipefail
+          delays=(0 30 60 120 120)
+          for attempt in 1 2 3 4 5; do
+            wait=${delays[$((attempt - 1))]}
+            if [ "$wait" -gt 0 ]; then
+              echo "::warning::warm-up attempt $((attempt - 1)) failed; retrying in ${wait}s"
+              sleep "$wait"
+            fi
+            if ./gradlew :app:assembleDebugAndroidTest --no-daemon --console=plain 2>&1 | tee "warmup-$attempt.log"; then
               echo "dependency warm-up succeeded on attempt $attempt"
               exit 0
             fi
-            echo "::warning::warm-up attempt $attempt failed; retrying in 20s"
-            sleep 20
+            # Distinguish a network outage from a real compile error: only the
+            # former is worth retrying.
+            if grep -qE "Could not resolve|Could not GET|Read timed out|Connection reset|502 Bad Gateway|503 Service" "warmup-$attempt.log"; then
+              echo "network-level resolution failure on attempt $attempt"
+            else
+              echo "::error::Warm-up failed for a reason other than network flakiness. Not retrying."
+              grep -E "^e: |What went wrong" -A 12 "warmup-$attempt.log" | head -60
+              exit 1
+            fi
           done
-          echo "::error::Could not resolve the build's dependencies after 3 attempts."
+          echo "::error::Could not resolve the build's dependencies after 5 attempts."
           exit 1
 
       - name: Run instrumentation tests on an emulator

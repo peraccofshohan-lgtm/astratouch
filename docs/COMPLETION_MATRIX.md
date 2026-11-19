@@ -37,6 +37,30 @@ Verified CI runs on branch `arena/51c0745e-astratouch`:
 
 ---
 
+## PR #1 review pass (pre-v1.0.1)
+
+PR #1 was reviewed line by line before release. **Nine defects were found; eight
+are fixed, one is an environment limitation.** Full detail in
+[PR1_REVIEW.md](PR1_REVIEW.md).
+
+| # | Defect | Severity | Status |
+| --- | --- | --- | --- |
+| 1 | FileProvider did not declare `captures/` or `recordings/`, so sharing always threw | Critical | Fixed |
+| 2 | "Delete all data" left recordings on disk | Critical (privacy) | Fixed |
+| 3 | Recordings were created but had no UI to list/play/share/delete | Feature hole | Fixed |
+| 4 | `BOOT_COMPLETED` started a `specialUse` FGS — throws on Android 12+ | Critical | Fixed |
+| 5 | `BATTERY_SAVER_ON` macro condition was hard-coded `false` | High | Fixed |
+| 6 | `NESTED` / `MULTI_PAGE` radial layouts were aliases of `FULL_CIRCLE` | High | Fixed |
+| 7 | Gradle could silently emit an unsigned release APK | High | Fixed |
+| 8 | Signature gate reported a vague error for an unsigned APK | Medium | Fixed |
+| 9 | `setup-signing.sh` required a TTY | Medium | Fixed |
+
+Reviewing code rather than trusting this matrix is what found items 1, 3, 4, 5 and
+6 — each of which had been marked as implemented, and two of which were marked as
+tested.
+
+---
+
 ## Phase 01 — Research and plan
 
 | Item | Status | Notes |
@@ -83,7 +107,7 @@ Verified CI runs on branch `arena/51c0745e-astratouch`:
 
 | Item | Status | Notes |
 | --- | --- | --- |
-| 8 layouts | ✅ TESTED | `RadialLayoutMathTest` (9 cases) |
+| 8 genuinely distinct layouts | ✅ TESTED | `RadialLayoutMathTest` (12 cases) — includes a test asserting **no two layouts produce identical geometry**, added after `NESTED`/`MULTI_PAGE` were found to be aliases of `FULL_CIRCLE` |
 | Unlimited items via paging | ✅ BUILT | `radial_items` unique (`page`,`slot`) |
 | Submenus / nested | ✅ BUILT | Nested layout + action routing |
 | Custom labels and icons per item | ✅ BUILT | `label`, `iconKey` columns |
@@ -120,7 +144,7 @@ Verified CI runs on branch `arena/51c0745e-astratouch`:
 | --- | --- | --- |
 | 5 built-in + custom profiles | ✅ TESTED | `DatabaseTest` seeding/idempotence |
 | Per-profile isolation | ✅ TESTED | Profile-scoped tables + FK cascades |
-| Auto-switch by package | 🟡 MANUAL | Implemented in `ProfileRepository`/prefs; not unit-tested with a fake foreground app |
+| Auto-switch by package | 🟡 MANUAL | Verified wired: `FloatingOverlayService.observeForegroundApp()` collects the accessibility foreground package and calls `setActiveProfile`. Not unit-tested with a fake foreground app |
 | Theme per profile | ✅ BUILT | `theme_configs.theme_id` on profile |
 
 ### Themes
@@ -135,9 +159,9 @@ Verified CI runs on branch `arena/51c0745e-astratouch`:
 | Item | Status | Notes |
 | --- | --- | --- |
 | Screenshot via accessibility (API 30+) | 🟡 MANUAL | Implemented; emulator-only verification, `FLAG_SECURE` handled |
-| MediaProjection recording | 🟡 MANUAL | Implemented; per-session consent documented |
+| MediaProjection recording | 🟡 MANUAL | Records MP4 to `files/recordings`; now listable, playable, shareable and deletable in the studio (was orphaned in v1.0.0) |
 | Crop / annotate | 🟡 MANUAL | Implemented in the studio UI |
-| Share via FileProvider | ✅ BUILT | Path allowlist in `file_paths.xml` |
+| Share via FileProvider | ✅ BUILT | Path allowlist now includes `captures/` and `recordings/`; it did not before v1.0.1, which broke every share |
 
 ### Productivity
 
@@ -176,7 +200,7 @@ Verified CI runs on branch `arena/51c0745e-astratouch`:
 
 | Item | Status | Notes |
 | --- | --- | --- |
-| JVM unit tests | ✅ TESTED | 9 files / 79 test cases (+6 instrumentation), all passing in run `44474918008` |
+| JVM unit tests | ✅ TESTED | 9 files / 86 test cases (+6 instrumentation). All green in CI. |
 | Room database tests (API 29/33/34) | ✅ TESTED | Robolectric `@Config` matrix, JVM |
 | Migration test | ✅ TESTED | Self-contained v1 schema; green on API 29/33/36 in run `44481063498`. Writing it exposed that `MIGRATION_1_2` was not idempotent (`duplicate column name` on re-run), which is now fixed |
 | Navigation smoke test | ✅ TESTED | `NavigationInstrumentedTest` — real Hilt graph on a device; green on API 29/33/36 in run `44481063498` |
@@ -224,12 +248,12 @@ Verified CI runs on branch `arena/51c0745e-astratouch`:
 | CI (test + lint + debug APK) | ✅ TESTED | Run `44474918008` success |
 | PR verification workflow | ✅ TESTED | `android-pr.yml` green on PR #1 (runs `44478520365`, `44479827309`) |
 | Self-hosted signing gate | ✅ TESTED | 4 secrets required, no debug-key fallback — verified failing closed in run `44483918522` |
-| Signature verification gate | ✅ BUILT | Rejects `CN=Android Debug`, requires v2+v3 |
+| Signature verification gate | ✅ BUILT | Fails explicitly on `apksigner` non-zero exit; rejects `CN=Android Debug`; requires v2+v3; publishes the signer cert SHA-256 |
 | Badging assertions | ✅ BUILT | package / versionName / versionCode / minSdk / targetSdk |
-| Checksums + metadata | ✅ BUILT | `SHA256SUMS.txt`, `release-metadata.json`, post-publish re-verify |
-| Release notes template | ✅ BUILT | `docs/releases/v1.0.0.md` |
-| Signing bootstrap script | ✅ BUILT | `scripts/setup-signing.sh` |
-| **Produce a signed v1.0.0 APK** | ⛔ BLOCKED | The automation token has repo admin but **not** `secrets: write` (HTTP 403 on `/actions/secrets`) and not `workflow: dispatch`. The owner must run `scripts/setup-signing.sh` once, or add the four secrets in Settings |
+| Checksums + metadata | ✅ BUILT | `SHA256SUMS.txt`, `release-metadata.json` (incl. `signingCertificateSha256`), post-publish re-verify |
+| Release notes | ✅ BUILT | `docs/releases/v1.0.0.md`, `docs/releases/v1.0.1.md` |
+| Signing bootstrap script | ✅ TESTED | `scripts/setup-signing.sh` — `--non-interactive` and `--print-values` verified end-to-end with a stubbed `keytool` |
+| **Produce a signed v1.0.1 APK** | ⛔ BLOCKED | The automation token has repo admin but **not** `secrets: write` (HTTP 403 on `/actions/secrets`) and not `workflow: dispatch`. The owner must run `scripts/setup-signing.sh` once, or add the four secrets in Settings |
 | **Publish the GitHub Release** | ⛔ BLOCKED | Same cause: run `44483918522` aborted at the secrets gate with `Release signing secrets are missing: ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD … Refusing to publish an unsigned APK` |
 | Git tag `v1.0.0` | ✅ BUILT | Tagged and pushed; it triggered release run `44483918522`, which validated the tag format and version consistency and then stopped at the secrets gate exactly as designed |
 
@@ -259,7 +283,7 @@ attached to the release.
 | 03 Implementation | ✅ Complete (2 items ⚠️ LIMITED by documented design, 3 🟡 MANUAL) |
 | 04 QA | ✅ Unit tests, lint, PR workflow and the emulator matrix (API 29/33/36) all green. `lintRelease` runs only inside the release pipeline and is ⛔ pending signing secrets |
 | 05 Documentation | ✅ Complete — 22 documents + release notes |
-| 06 Release | ⚠️ Pipeline complete and partially verified: gates 1, 2, 4 and 5 passed on tag `v1.0.0`, and the secrets gate was observed failing closed. Signed publication is ⛔ blocked on a secret this automation cannot write |
+| 06 Release | ⚠️ Pipeline complete; gates 1, 2, 4 and 5 verified passing on tag `v1.0.0`, and the secrets gate observed failing closed. **Producing a signed APK is ⛔ blocked**: the automation token is refused by GitHub's secrets API (403), so the four signing secrets must be added by the repository owner. Exact steps: [SIGNING_HANDOVER.md](SIGNING_HANDOVER.md) |
 
 Nothing in this matrix is marked TESTED without a CI run to point at, and nothing
 is marked BUILT unless it compiles in that run.

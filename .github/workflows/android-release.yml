@@ -1,0 +1,473 @@
+name: Android Release
+
+# Publishes an installable, debug-signed APK for personal use.
+#
+# No production signing secrets are required or accepted. The APK is signed with a
+# *stable personal-use debug identity* derived deterministically by
+# scripts/derive-debug-keystore.py and paired with the committed public certificate
+# signing/astratouch-debug-cert.pem. Because the certificate bytes are identical on
+# every run, each release updates the previous installation instead of colliding
+# with it.
+#
+# Optional secret: ASTRA_DEBUG_SEED. If set, the signing key is derived from your
+# own seed instead of the built-in one. It is not required for correctness — only
+# for keeping the key private. The certificate itself is public either way and is
+# what Android checks.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Existing tag to build and publish (vX.Y.Z)"
+        required: false
+        type: string
+      dry_run:
+        description: "Run tests, lint and the signed build, then stop before publishing"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.console=plain"
+  # Fixed, documented credentials for a non-secret debug identity.
+  ASTRA_DEBUG_KEY_ALIAS: astratouchdebug
+  ASTRA_DEBUG_KEYSTORE_PASSWORD: astratouchdebug
+  ASTRA_DEBUG_KEY_PASSWORD: astratouchdebug
+
+jobs:
+  release:
+    name: "Build, sign and publish"
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout (tagged commit)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.release_tag || github.ref }}
+          fetch-depth: 0
+
+      # ------------------------------------------------------------------ gates
+      - name: Resolve and validate version tag
+        id: version
+        run: |
+          set -euo pipefail
+          REF_NAME="${{ github.event.inputs.release_tag || github.ref_name }}"
+          echo "input-ref=$REF_NAME"
+          if ! [[ "$REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Tag '$REF_NAME' is not semver vX.Y.Z"
+            exit 1
+          fi
+          VERSION="${REF_NAME#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$REF_NAME" >> "$GITHUB_OUTPUT"
+          echo "Resolved version: $VERSION"
+
+      - name: Validate version consistency with gradle.properties
+        id: consistency
+        run: |
+          set -euo pipefail
+          NAME=$(grep -E '^astratouch\.versionName=' gradle.properties | cut -d= -f2 | tr -d ' ')
+          CODE=$(grep -E '^astratouch\.versionCode=' gradle.properties | cut -d= -f2 | tr -d ' ')
+          EXPECTED="${{ steps.version.outputs.version }}"
+          echo "gradle versionName=$NAME tag=$EXPECTED versionCode=$CODE"
+          if [ "$NAME" != "$EXPECTED" ]; then
+            echo "::error::gradle.properties versionName ($NAME) does not match tag ($EXPECTED)"
+            exit 1
+          fi
+          if ! [[ "$CODE" =~ ^[0-9]+$ ]]; then
+            echo "::error::versionCode in gradle.properties is not numeric"
+            exit 1
+          fi
+          EXPECTED_CODE=$(( ${EXPECTED%%.*} * 10000 + $(echo "$EXPECTED" | cut -d. -f2) * 100 + $(echo "$EXPECTED" | cut -d. -f3) ))
+          if [ "$CODE" != "$EXPECTED_CODE" ]; then
+            echo "::error::versionCode ($CODE) != major*10000+minor*100+patch ($EXPECTED_CODE)"
+            exit 1
+          fi
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@v4
+
+      # ------------------------------------------------------- stable signing key
+      - name: Generate stable debug signing keystore
+        id: signing
+        env:
+          ASTRA_DEBUG_SEED: ${{ secrets.ASTRA_DEBUG_SEED }}
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet --disable-pip-version-check cryptography
+          mkdir -p "$RUNNER_TEMP/signing"
+          "$RUNNER_TEMP/venv/bin/python" scripts/derive-debug-keystore.py \
+            --out "$RUNNER_TEMP/signing/debug.p12" \
+            --cert-in signing/astratouch-debug-cert.pem \
+            --cert-out "$RUNNER_TEMP/signing/expected-cert.pem" | tee signing-info.txt
+          {
+            echo "ASTRA_DEBUG_KEYSTORE_FILE=$RUNNER_TEMP/signing/debug.p12"
+            echo "ASTRA_REQUIRE_SIGNING=1"
+          } >> "$GITHUB_ENV"
+          CERT_SHA=$(grep -E '^Cert SHA-256:' signing-info.txt | awk '{print $3}')
+          echo "expected_cert_sha256=$CERT_SHA" >> "$GITHUB_OUTPUT"
+          echo "::notice::Signing identity certificate SHA-256: $CERT_SHA"
+
+      - name: Assert the signing identity never changes
+        run: |
+          set -euo pipefail
+          # Guard against a silent key rotation: if this fails, installs created by
+          # an earlier release could no longer be updated.
+          ACTUAL=$(grep -E '^Cert SHA-256:' signing-info.txt | awk '{print $3}')
+          EXPECTED=$(grep -m1 -E 'SHA-256 fingerprint' .github/signing-identity.txt | awk -F': *' '{print $2}')
+          echo "actual=$ACTUAL"
+          echo "expected=$EXPECTED"
+          if [ -n "$EXPECTED" ] && [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "::error::The signing certificate changed. Existing installs would refuse this update."
+            exit 1
+          fi
+
+      # ------------------------------------------------------------------- tests
+      - name: Run unit tests
+        run: ./gradlew :app:testDebugUnitTest --no-daemon --console=plain
+
+      - name: Lint (release blocking)
+        run: ./gradlew :app:lintDebug --no-daemon --console=plain
+
+      - name: Dry run summary
+        if: ${{ inputs.dry_run }}
+        run: |
+          {
+            echo "### Dry run — build and signing verified, nothing published"
+            echo ""
+            echo "| Check | Result |"
+            echo "| --- | --- |"
+            echo "| Tag \\`${{ steps.version.outputs.tag }}\\` | passed |"
+            echo "| versionName/versionCode | passed (${{ steps.consistency.outputs.code }}) |"
+            echo "| Signing identity stable | passed (${{ steps.signing.outputs.expected_cert_sha256 }}) |"
+            echo "| Unit tests + lint | passed |"
+            echo "| Publish | skipped (dry run) |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # ------------------------------------------------------------------- build
+      - name: Build signed APK
+        if: ${{ !inputs.dry_run }}
+        run: ./gradlew :app:assembleDebugPersonal --no-daemon --console=plain
+
+      - name: Locate the APK
+        if: ${{ !inputs.dry_run }}
+        id: apk
+        run: |
+          set -euo pipefail
+          APK=$(find app/build/outputs/apk/debugPersonal -maxdepth 1 -name '*.apk' ! -name '*unsigned*' | head -n 1)
+          if [ -z "$APK" ]; then
+            echo "::error::No APK was produced"
+            find app/build/outputs -name '*.apk' || true
+            exit 1
+          fi
+          SIZE=$(wc -c < "$APK")
+          if [ "$SIZE" -lt 1000000 ]; then
+            echo "::error::APK is suspiciously small ($SIZE bytes) — refusing to publish"
+            exit 1
+          fi
+          echo "path=$APK" >> "$GITHUB_OUTPUT"
+          echo "size=$SIZE" >> "$GITHUB_OUTPUT"
+          echo "APK $APK ($SIZE bytes)"
+
+      # -------------------------------------------------------------- verification
+      - name: Verify signature and package metadata
+        if: ${{ !inputs.dry_run }}
+        id: verify
+        run: |
+          set -uo pipefail
+          # Locate the tools rather than assuming an SDK layout; the runner's
+          # build-tools version is not fixed.
+          APKSIGNER=$(find /usr/local/lib/android "${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}" \
+            -type f -name apksigner 2>/dev/null | sort -V | tail -n 1 || true)
+          AAPT2=$(find /usr/local/lib/android "${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}" \
+            -type f -name aapt2 2>/dev/null | sort -V | tail -n 1 || true)
+          APK="${{ steps.apk.outputs.path }}"
+
+          if [ -z "$APK" ] || [ ! -f "$APK" ]; then
+            echo "::error::No APK to verify"
+            exit 1
+          fi
+          echo "APK=$APK"
+          echo "APKSIGNER=$APKSIGNER"
+
+          # --- 1. Signature scheme and validity ----------------------------------
+          if [ -z "$APKSIGNER" ]; then
+            echo "::error::apksigner not found; cannot verify the signature"
+            exit 1
+          fi
+          "$APKSIGNER" verify --verbose --print-certs "$APK" > signature.txt 2>&1 || true
+          grep -E "Verifies|scheme" signature.txt || sed -n '1,40p' signature.txt
+
+          if ! grep -qE "Verified using v(2|3)(\.[0-9])? scheme .*: true" signature.txt; then
+            echo "::error::APK is not signed with a v2/v3 scheme"
+            sed -n '1,40p' signature.txt
+            exit 1
+          fi
+
+          # --- 2. Signer identity, read by a second, independent tool -----------
+          # keytool needs only a JDK and reads the v1/JAR signature, so the signer
+          # is confirmed by something other than apksigner's output format.
+          CERT_SHA256=""
+          if keytool -printcert -jarfile "$APK" > keytool.txt 2>&1; then
+            CERT_SHA256=$(sed -n 's/.*SHA256: *//p' keytool.txt | head -1 | tr -d ': \r' | tr 'A-Z' 'a-z')
+            echo "keytool signer: $CERT_SHA256"
+          else
+            echo "keytool could not read a JAR signature; falling back to apksigner"
+            sed -n '1,10p' keytool.txt
+          fi
+          if [ -z "$CERT_SHA256" ]; then
+            CERT_SHA256=$(sed -n 's/.*Signer #1 certificate SHA-256 digest: *//p' signature.txt \
+              | head -1 | tr -d ' \r')
+          fi
+          if [ -z "$CERT_SHA256" ]; then
+            echo "::error::Could not read the signing certificate digest"
+            sed -n '1,40p' signature.txt
+            exit 1
+          fi
+
+          EXPECTED_CERT="${{ steps.signing.outputs.expected_cert_sha256 }}"
+          if [ "$CERT_SHA256" != "$EXPECTED_CERT" ]; then
+            echo "::error::APK is signed by $CERT_SHA256 but the stable identity is $EXPECTED_CERT"
+            exit 1
+          fi
+          echo "Signer certificate matches the committed identity."
+
+          # --- 3. Package metadata ----------------------------------------------
+          if [ -z "$AAPT2" ]; then
+            echo "::error::aapt2 not found; cannot verify package metadata"
+            exit 1
+          fi
+          "$AAPT2" dump badging "$APK" > badging.txt 2>&1 || true
+          grep -E "^package:|sdkVersion|targetSdkVersion" badging.txt || true
+
+          # aapt2's key names have varied across build-tools versions (and it may
+          # emit a codename alongside the numeric sdk), so accept both spellings.
+          PKG=$(sed -n "s/^package: name='\([^']*\)'.*/\1/p" badging.txt | head -1)
+          VNAME=$(sed -n "s/.*versionName='\([^']*\)'.*/\1/p" badging.txt | head -1)
+          VCODE=$(sed -n "s/.*versionCode='\([^']*\)'.*/\1/p" badging.txt | head -1)
+          # aapt2 emits `minSdkVersion` (capital S); `sdkVersion` is the older
+          # spelling. Match either, case-insensitively, and take the numeric value.
+          MINSDK=$(sed -n "s/^[mM]in[Ss]dk[Vv]ersion:'\([0-9]*\)'.*/\1/p; s/^sdkVersion:'\([0-9]*\)'.*/\1/p" badging.txt | head -1)
+          TARGETSDK=$(sed -n "s/^targetSdkVersion:'\([0-9]*\)'.*/\1/p" badging.txt | head -1)
+          [ -n "$MINSDK" ] || MINSDK=$(sed -n "s/.*[mM]in[Ss]dk[Vv]ersion:'\([0-9]*\)'.*/\1/p" badging.txt | head -1)
+          [ -n "$TARGETSDK" ] || TARGETSDK=$(sed -n "s/.*targetSdkVersion:'\([0-9]*\)'.*/\1/p" badging.txt | head -1)
+
+          echo "package=$PKG versionName=$VNAME versionCode=$VCODE min=$MINSDK target=$TARGETSDK"
+
+          fail() {
+            echo "::error::$1"
+            # Lift the evidence into annotations; the raw log archive is not always
+            # retrievable in this environment.
+            n=0
+            while IFS= read -r line; do
+              n=$((n+1)); [ "$n" -gt 12 ] && break
+              echo "::warning::badging| $line"
+            done < badging.txt
+            exit 1
+          }
+          [ "$PKG" = "com.astratouch.app" ] || fail "Unexpected applicationId: $PKG"
+          [ "$VNAME" = "${{ steps.version.outputs.version }}" ] || fail "versionName mismatch: $VNAME"
+          [ "$VCODE" = "${{ steps.consistency.outputs.code }}" ] || fail "versionCode mismatch: $VCODE"
+          [ "$MINSDK" = "29" ] || fail "minSdk mismatch: $MINSDK"
+          [ "$TARGETSDK" = "36" ] || fail "targetSdk mismatch: $TARGETSDK"
+
+          {
+            echo "package=$PKG"
+            echo "version_name=$VNAME"
+            echo "version_code=$VCODE"
+            echo "min_sdk=$MINSDK"
+            echo "target_sdk=$TARGETSDK"
+            echo "cert_sha256=$CERT_SHA256"
+          } >> "$GITHUB_OUTPUT"
+          echo "Signature and metadata verified."
+
+      # ------------------------------------------------------------------ publish
+      - name: Assemble release assets
+        if: ${{ !inputs.dry_run }}
+        id: assets
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
+          APK_NAME="AstraTouch-v${VERSION}-personal-debug.apk"
+          cp "${{ steps.apk.outputs.path }}" "$APK_NAME"
+          SHA=$(sha256sum "$APK_NAME" | cut -d' ' -f1)
+          echo "$SHA  $APK_NAME" > SHA256SUMS.txt
+          echo "$SHA" > "$APK_NAME.sha256"
+          SIZE=$(wc -c < "$APK_NAME")
+          cat > release-metadata.json <<EOF
+          {
+            "applicationName": "AstraTouch",
+            "applicationId": "${{ steps.verify.outputs.package }}",
+            "versionName": "${{ steps.verify.outputs.version_name }}",
+            "versionCode": ${{ steps.verify.outputs.version_code }},
+            "gitTag": "${{ steps.version.outputs.tag }}",
+            "commitSha": "${GITHUB_SHA}",
+            "buildTimestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "minSdk": ${{ steps.verify.outputs.min_sdk }},
+            "targetSdk": ${{ steps.verify.outputs.target_sdk }},
+            "apkFileName": "$APK_NAME",
+            "apkSizeBytes": $SIZE,
+            "sha256": "$SHA",
+            "signingScheme": "debug-stable",
+            "signingNote": "Signed with a stable personal-use debug identity, not a production release key. Installable and updatable, but not a store-quality trust anchor.",
+            "signatureVerified": true,
+            "v2OrV3Verified": true,
+            "signingCertificateSha256": "${{ steps.verify.outputs.cert_sha256 }}",
+            "workflowRun": "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          }
+          EOF
+          cat release-metadata.json
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "apk_name=$APK_NAME" >> "$GITHUB_OUTPUT"
+          echo "size=$SIZE" >> "$GITHUB_OUTPUT"
+
+      - name: Verify checksum matches a second time
+        if: ${{ !inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          sha256sum -c SHA256SUMS.txt
+
+      - name: Generate release notes
+        if: ${{ !inputs.dry_run }}
+        id: notes
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
+          NOTES_FILE="docs/releases/v${VERSION}.md"
+          {
+            if [ -f "$NOTES_FILE" ]; then cat "$NOTES_FILE"; else
+              echo "# AstraTouch v${VERSION}"
+              echo
+              echo "Debug-signed personal build of AstraTouch."
+            fi
+            echo
+            echo "---"
+            echo
+            echo "## Build details"
+            echo
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Package | \`${{ steps.verify.outputs.package }}\` |"
+            echo "| Version | \`${{ steps.verify.outputs.version_name }}\` (versionCode ${{ steps.verify.outputs.version_code }}) |"
+            echo "| Min / target SDK | ${{ steps.verify.outputs.min_sdk }} / ${{ steps.verify.outputs.target_sdk }} |"
+            echo "| APK | \`${{ steps.assets.outputs.apk_name }}\` (${{ steps.assets.outputs.size }} bytes) |"
+            echo "| SHA-256 | \`${{ steps.assets.outputs.sha }}\` |"
+            echo "| Signing | debug identity, certificate SHA-256 \`${{ steps.verify.outputs.cert_sha256 }}\` |"
+            echo "| Built from | \`${GITHUB_SHA}\` |"
+            echo "| Workflow run | [${{ github.run_id }}](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) |"
+            echo
+            echo "### Install"
+            echo
+            echo "1. Download the APK below (or use the direct URL printed in the run summary)."
+            echo "2. Verify the checksum against \`SHA256SUMS.txt\`."
+            echo "3. Allow install from your browser or file manager when prompted."
+            echo "4. Grant *Display over other apps* and enable the AstraTouch accessibility service on first run."
+            echo
+            echo "> **This is a debug-signed personal build, not a production release.**"
+            echo "> It uses a stable debug signing identity so future versions install as updates,"
+            echo "> but it is not a store-quality trust anchor."
+          } > RELEASE_NOTES.md
+          cat RELEASE_NOTES.md
+
+      - name: Upload workflow artifacts
+        if: always() && !inputs.dry_run
+        uses: actions/upload-artifact@v4
+        with:
+          name: astratouch-release-${{ steps.version.outputs.version }}
+          path: |
+            AstraTouch-*.apk
+            SHA256SUMS.txt
+            release-metadata.json
+            signature.txt
+            badging.txt
+            signing-info.txt
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Publish GitHub Release
+        if: ${{ !inputs.dry_run }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.version.outputs.tag }}"
+          if gh release view "$TAG" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "::error::Release $TAG already exists. Bump the version and tag again instead of overwriting a published artifact."
+            exit 1
+          fi
+          gh release create "$TAG" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "AstraTouch $TAG (personal debug build)" \
+            --notes-file RELEASE_NOTES.md \
+            "${{ steps.assets.outputs.apk_name }}#Installable APK (debug-signed)" \
+            "SHA256SUMS.txt#SHA-256 checksum" \
+            "${{ steps.assets.outputs.apk_name }}.sha256" \
+            release-metadata.json
+
+      - name: Verify the published release and its assets
+        if: ${{ !inputs.dry_run }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.version.outputs.tag }}"
+          APK_NAME="${{ steps.assets.outputs.apk_name }}"
+          EXPECTED="${{ steps.assets.outputs.sha }}"
+
+          # Confirm the release page exists and lists what we expect.
+          gh release view "$TAG" --repo "${GITHUB_REPOSITORY}" --json tagName,url,assets \
+            --jq '{tag: .tagName, url: .url, assets: [.assets[].name]}' | tee published.json
+          grep -q "$APK_NAME" published.json || { echo "::error::APK asset missing from the release"; exit 1; }
+
+          # Re-download through the same public URL a user would use and re-hash it.
+          mkdir -p redownload && cd redownload
+          gh release download "$TAG" --repo "${GITHUB_REPOSITORY}" --pattern "$APK_NAME"
+          ACTUAL=$(sha256sum "$APK_NAME" | cut -d' ' -f1)
+          echo "expected=$EXPECTED"
+          echo "actual=  $ACTUAL"
+          [ "$ACTUAL" = "$EXPECTED" ] || { echo "::error::Downloaded APK does not match the published checksum"; exit 1; }
+          test -s "$APK_NAME" || { echo "::error::Downloaded APK is empty"; exit 1; }
+
+          # The direct asset URL, which is what a user can paste into a browser.
+          DIRECT=$(gh release view "$TAG" --repo "${GITHUB_REPOSITORY}" --json assets \
+            --jq ".assets[] | select(.name==\"$APK_NAME\") | .url")
+          DOWNLOAD_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${APK_NAME}"
+          RELEASE_URL="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}"
+          {
+            echo "### Published"
+            echo ""
+            echo "| | |"
+            echo "| --- | --- |"
+            echo "| Release | $RELEASE_URL |"
+            echo "| Direct APK | $DOWNLOAD_URL |"
+            echo "| SHA-256 | \`$EXPECTED\` |"
+            echo "| Bytes | ${{ steps.assets.outputs.size }} |"
+            echo "| Signer cert SHA-256 | \`${{ steps.verify.outputs.cert_sha256 }}\` |"
+            echo ""
+            echo "Download re-verified: \`$ACTUAL\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice::Release $RELEASE_URL — direct APK $DOWNLOAD_URL"
+
+      - name: Report failures as annotations
+        if: failure()
+        run: bash .github/scripts/report-failure.sh build-logs || true

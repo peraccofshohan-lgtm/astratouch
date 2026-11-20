@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AstraTouch</string>
+    <string name="app_tagline">Your Phone. Your Control.</string>
+
+    <!-- Accessibility -->
+    <string name="accessibility_service_label">AstraTouch Actions</string>
+    <string name="accessibility_service_summary">Enables global navigation, quick settings and screenshot actions from the AstraTouch menu.</string>
+    <string name="accessibility_service_description">AstraTouch uses this accessibility service to perform global actions you explicitly trigger from the floating bubble: Home, Back, Recents, Notifications, Quick Settings and screen capture. It reads only window-change events to know when the current app changes. AstraTouch never reads, stores or transmits the text on your screen, and it never acts without your input. You can turn it off at any time in Android Settings.</string>
+
+    <string name="device_admin_label">AstraTouch screen lock</string>
+    <string name="device_admin_description">Lets AstraTouch lock the screen from the floating menu. Only the force-lock policy is used.</string>
+
+    <!-- Overlay / notifications -->
+    <string name="overlay_channel_name">Floating controls</string>
+    <string name="overlay_channel_description">Keeps the AstraTouch bubble available while you use other apps.</string>
+    <string name="overlay_notification_title">AstraTouch is active</string>
+    <string name="overlay_notification_text">Tap to open the control center. Use Hide to remove the bubble.</string>
+    <string name="overlay_notification_hide">Hide bubble</string>
+    <string name="overlay_notification_stop">Stop</string>
+    <string name="capture_channel_name">Screen capture</string>
+    <string name="capture_channel_description">Shows that AstraTouch is recording or capturing your screen.</string>
+    <string name="capture_notification_title">AstraTouch screen capture</string>
+    <string name="capture_notification_text">Screen recording is running. Tap Stop to finish.</string>
+    <string name="capture_notification_stop">Stop recording</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">Home</string>
+    <string name="nav_onboarding">Onboarding</string>
+    <string name="nav_permissions">Permissions</string>
+    <string name="nav_bubble">Bubble</string>
+    <string name="nav_radial">Radial menu</string>
+    <string name="nav_quick_controls">Quick controls</string>
+    <string name="nav_gestures">Gestures</string>
+    <string name="nav_actions">Actions</string>
+    <string name="nav_macros">Macros</string>
+    <string name="nav_apps">Apps</string>
+    <string name="nav_profiles">Profiles</string>
+    <string name="nav_themes">Themes</string>
+    <string name="nav_screenshots">Screenshots</string>
+    <string name="nav_clipboard">Clipboard</string>
+    <string name="nav_notes">Notes</string>
+    <string name="nav_calculator">Calculator</string>
+    <string name="nav_timer">Timer</string>
+    <string name="nav_lab">Lab</string>
+    <string name="nav_privacy">Privacy</string>
+    <string name="nav_settings">Settings</string>
+    <string name="nav_about">About</string>
+
+    <!-- Common -->
+    <string name="action_save">Save</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_edit">Edit</string>
+    <string name="action_duplicate">Duplicate</string>
+    <string name="action_close">Close</string>
+    <string name="action_retry">Retry</string>
+    <string name="action_back">Back</string>
+    <string name="action_add">Add</string>
+    <string name="action_apply">Apply</string>
+    <string name="action_reset">Reset</string>
+    <string name="action_export">Export</string>
+    <string name="action_import">Import</string>
+    <string name="action_share">Share</string>
+    <string name="action_open_settings">Open Android settings</string>
+    <string name="action_grant">Grant</string>
+    <string name="action_done">Done</string>
+    <string name="loading">Loading…</string>
+    <string name="empty_state_title">Nothing here yet</string>
+    <string name="error_generic">Something went wrong. Please try again.</string>
+
+    <!-- Permission copy -->
+    <string name="perm_overlay_title">Display over other apps</string>
+    <string name="perm_overlay_purpose">Required for the floating bubble and the radial menu, which must be drawn on top of other apps.</string>
+    <string name="perm_accessibility_title">Accessibility service</string>
+    <string name="perm_accessibility_purpose">Required for global Home / Back / Recents, notification shade, Quick Settings, and screenshot capture.</string>
+    <string name="perm_writesettings_title">Modify system settings</string>
+    <string name="perm_writesettings_purpose">Required for brightness and auto-rotation actions. Optional.</string>
+    <string name="perm_notifications_title">Notifications</string>
+    <string name="perm_notifications_purpose">Required for the persistent "AstraTouch is active" status and macro/timer alerts.</string>
+    <string name="perm_camera_title">Camera (flashlight)</string>
+    <string name="perm_camera_purpose">Required only for the flashlight action. Never used to take pictures.</string>
+    <string name="perm_battery_title">Ignore battery optimisation</string>
+    <string name="perm_battery_purpose">Optional. Helps the bubble survive aggressive OEM background restrictions.</string>
+
+    <!-- Screens -->
+    <string name="onboarding_title">Welcome to AstraTouch</string>
+    <string name="onboarding_subtitle">A floating bubble that puts your whole phone within thumb reach. Offline. No account. No ads.</string>
+    <string name="dashboard_running">Bubble active</string>
+    <string name="dashboard_stopped">Bubble stopped</string>
+    <string name="settings_privacy_statement">AstraTouch never sends your data anywhere. It has no network permission at all.</string>
+    <string name="about_build_info">Build information</string>
+    <string name="about_version">Version</string>
+    <string name="about_version_code">Version code</string>
+    <string name="about_package">Application ID</string>
+    <string name="about_sdk">SDK range</string>
+    <string name="about_commit">Commit</string>
+    <string name="about_license">License</string>
+</resources>

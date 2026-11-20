@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Outer orbital ring -->
+    <path
+        android:strokeColor="#32E6E2"
+        android:strokeWidth="3.2"
+        android:strokeAlpha="0.85"
+        android:fillColor="#00000000"
+        android:pathData="M54,22 m-26,0 a26,26 0 1,0 52,0 a26,26 0 1,0 -52,0" />
+    <!-- Inner ring -->
+    <path
+        android:strokeColor="#7C5CFF"
+        android:strokeWidth="2"
+        android:strokeAlpha="0.55"
+        android:fillColor="#00000000"
+        android:pathData="M54,54 m-15,0 a15,15 0 1,0 30,0 a15,15 0 1,0 -30,0" />
+    <!-- Core -->
+    <path
+        android:fillColor="#F2FEFF"
+        android:pathData="M54,46 m-7,0 a7,7 0 1,0 14,0 a7,7 0 1,0 -14,0" />
+    <!-- Astra star burst -->
+    <path
+        android:fillColor="#32E6E2"
+        android:pathData="M54,20 L57.4,30.6 L68,34 L57.4,37.4 L54,48 L50.6,37.4 L40,34 L50.6,30.6 Z" />
+</vector>

@@ -1,0 +1,46 @@
+# Gradle & build outputs
+.gradle/
+**/build/
+!src/**/build/
+out/
+
+# Local configuration & IDE
+local.properties
+*.iml
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Signing keys & secrets (NEVER COMMIT)
+*.jks
+*.keystore
+key.properties
+keystore.properties
+signing.properties
+release-keystore.*
+*.p12
+*.pfx
+*.b64
+*.pem
+# ...but the PUBLIC debug certificate MUST be tracked.
+# Android compares the signing *certificate* to decide whether an update may
+# replace an installed app, so committing this 688-byte public certificate is what
+# makes every published build updatable. It contains no private key.
+!signing/astratouch-debug-cert.pem
+
+# Release / build artifacts (H31 - published via GitHub Releases only)
+*.apk
+*.aab
+*.ap_
+*.dex
+SHA256SUMS.txt
+release-metadata.json
+
+# Kotlin / KSP / Lint caches
+.kotlin/
+lint-results*.html
+lint-results*.xml

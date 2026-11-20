@@ -1,0 +1,195 @@
+name: Android CI
+
+on:
+  push:
+    branches: [main, "arena/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  ASTRA_DEBUG_KEY_ALIAS: astratouchdebug
+  ASTRA_DEBUG_KEYSTORE_PASSWORD: astratouchdebug
+  ASTRA_DEBUG_KEY_PASSWORD: astratouchdebug
+  GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.console=plain"
+
+jobs:
+  build-and-test:
+    name: "Build, test and lint"
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@v4
+
+      - name: Show toolchain
+        run: |
+          java -version
+          echo "ANDROID_HOME=${ANDROID_HOME:-unset}"
+          ls "${ANDROID_HOME:-/usr/local/lib/android/sdk}" 2>/dev/null | head
+          ./gradlew --version
+
+      - name: Unit tests
+        run: |
+          mkdir -p build-logs
+          set -o pipefail
+          ./gradlew :app:testDebugUnitTest --no-daemon --console=plain 2>&1 | tee build-logs/unit-tests.log
+
+      - name: Lint
+        run: |
+          set -o pipefail
+          ./gradlew :app:lintDebug --no-daemon --console=plain 2>&1 | tee build-logs/lint.log
+
+      - name: Build debug APK
+        run: |
+          set -o pipefail
+          ./gradlew :app:assembleDebug --no-daemon --console=plain 2>&1 | tee build-logs/assemble-debug.log
+
+      # The published artifact is the `debugPersonal` variant. Building it in CI
+      # catches build-type-specific breakage (R8 shrinking, resource shrinking,
+      # missing debug-only sources) long before a release tag is pushed.
+      - name: Generate stable debug signing keystore
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet --disable-pip-version-check cryptography
+          mkdir -p "$RUNNER_TEMP/signing"
+          "$RUNNER_TEMP/venv/bin/python" scripts/derive-debug-keystore.py \
+            --out "$RUNNER_TEMP/signing/debug.p12" \
+            --cert-in signing/astratouch-debug-cert.pem | tee signing-info.txt
+          {
+            echo "ASTRA_DEBUG_KEYSTORE_FILE=$RUNNER_TEMP/signing/debug.p12"
+            echo "ASTRA_REQUIRE_SIGNING=1"
+          } >> "$GITHUB_ENV"
+
+      - name: Build personal (published) APK
+        run: |
+          set -o pipefail
+          if ./gradlew :app:assembleDebugPersonal --no-daemon --console=plain 2>&1 \
+               | tee build-logs/assemble-personal.log; then
+            exit 0
+          fi
+          # The job log archive is not always retrievable, so lift the interesting
+          # lines into annotations where they are always visible.
+          echo "::error::assembleDebugPersonal failed. Key lines:"
+          grep -E "^(e: |\* What went wrong|> Task .*FAILED|Caused by:|Execution failed|A failure occurred)|error:" \
+            build-logs/assemble-personal.log | head -40 | while IFS= read -r line; do
+              echo "::error::${line}"
+            done
+          exit 1
+
+      - name: Verify the personal APK is signed by the stable identity
+        if: success()
+        run: |
+          set -uo pipefail
+          SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          APKSIGNER=$(find /usr/local/lib/android "$SDK" -type f -name apksigner 2>/dev/null | sort -V | tail -n 1 || true)
+          APK=$(find app/build/outputs/apk/debugPersonal -name '*.apk' ! -name '*unsigned*' | head -1)
+
+          if [ -z "$APK" ] || [ ! -f "$APK" ]; then
+            echo "::error::No debugPersonal APK found to verify"
+            exit 1
+          fi
+          echo "APK=$APK  APKSIGNER=$APKSIGNER"
+
+          EXPECTED=$(grep -m1 'SHA-256 fingerprint' .github/signing-identity.txt | awk -F': *' '{print $2}')
+          echo "expected fingerprint: $EXPECTED"
+
+          # --- 1. Full apksigner verification output (also proves the scheme) -----
+          if [ -n "$APKSIGNER" ]; then
+            "$APKSIGNER" verify --verbose --print-certs "$APK" > apksigner.txt 2>&1 || true
+            grep -E "Verifies|scheme" apksigner.txt || cat apksigner.txt
+          fi
+
+          # --- 2. Independent certificate check ----------------------------------
+          # `keytool -printcert -jarfile` reads the v1/JAR signature and needs no
+          # Android SDK, so the signer identity is confirmed by a second toolchain
+          # rather than trusting a single parser.
+          DETECTED=""
+          if keytool -printcert -jarfile "$APK" > keytool.txt 2>&1; then
+            DETECTED=$(sed -n 's/.*SHA256: *//p' keytool.txt | head -1 | tr -d ': \r' | tr 'A-Z' 'a-z')
+            echo "keytool reported: $DETECTED"
+          else
+            echo "keytool could not read a JAR signature:"
+            sed -n '1,10p' keytool.txt
+          fi
+
+          if [ -z "$DETECTED" ] && [ -n "$APKSIGNER" ]; then
+            DETECTED=$(sed -n 's/.*Signer #1 certificate SHA-256 digest: *//p' apksigner.txt | head -1 | tr -d ' \r')
+            echo "apksigner reported: $DETECTED"
+          fi
+
+          if [ -z "$DETECTED" ]; then
+            echo "::error::Could not determine the APK signing certificate"
+            sed -n '1,25p' keytool.txt
+            sed -n '1,25p' apksigner.txt 2>/dev/null
+            exit 1
+          fi
+
+          if [ "$DETECTED" != "$EXPECTED" ]; then
+            echo "::error::APK signer $DETECTED != stable identity $EXPECTED"
+            exit 1
+          fi
+
+          # --- 3. Package metadata ----------------------------------------------
+          AAPT2=$(find /usr/local/lib/android "$SDK" -type f -name aapt2 2>/dev/null | sort -V | tail -n 1 || true)
+          if [ -n "$AAPT2" ]; then
+            "$AAPT2" dump badging "$APK" > badging.txt 2>&1 || true
+            grep -E "^package:" badging.txt || true
+            grep -E "sdkVersion|targetSdkVersion" badging.txt || true
+          fi
+
+          echo "::notice::Personal APK verified — signer $DETECTED matches the stable identity"
+
+      - name: Report failures as annotations
+        if: failure()
+        run: bash .github/scripts/report-failure.sh build-logs
+
+      - name: Upload personal APK
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: astratouch-debugpersonal-apk
+          path: app/build/outputs/apk/debugPersonal/*.apk
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload debug APK
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: astratouch-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload test and lint reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: astratouch-test-reports
+          path: |
+            app/build/reports/tests/**
+            app/build/reports/lint-results-*.html
+            app/build/reports/lint-results-*.xml
+            app/build/test-results/**
+            build-logs/**
+          if-no-files-found: warn
+          retention-days: 14
